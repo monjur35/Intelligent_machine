@@ -1,0 +1,34 @@
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
+
+abstract class NetworkInfo {
+  Future<bool> get isConnected;
+  Stream<bool> get onConnectivityChanged;
+}
+
+class NetworkInfoImpl implements NetworkInfo {
+  final Connectivity connectivity;
+
+  NetworkInfoImpl({Connectivity? connectivity})
+      : connectivity = connectivity ?? Connectivity();
+
+  @override
+  Future<bool> get isConnected async {
+    final result = await connectivity.checkConnectivity();
+    return _isOnline(result);
+  }
+
+  @override
+  Stream<bool> get onConnectivityChanged {
+    return connectivity.onConnectivityChanged.map(_isOnline);
+  }
+
+  bool _isOnline(dynamic results) {
+    if (results is List<ConnectivityResult>) {
+      return results.any((r) => r != ConnectivityResult.none);
+    } else if (results is ConnectivityResult) {
+      return results != ConnectivityResult.none;
+    }
+    return false;
+  }
+}
