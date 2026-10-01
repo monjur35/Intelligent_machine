@@ -34,7 +34,7 @@ dependencies:
   flutter_bloc: ^8.1.6
   equatable: ^2.0.7
   camera: ^0.11.0
-  workmanager: ^0.5.2
+  workmanager: 0.8.0
   connectivity_plus: ^6.1.0
   sqflite: ^2.4.1
   path_provider: ^2.1.5
