@@ -77,7 +77,7 @@ class DatabaseHelper {
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<List<BatchModel>> getBatches() async {
+  Future<List<BatchModel>> getBatches({bool onlyWithImages = true}) async {
     final db = await database;
     final batchRows =
         await db.query('batches', orderBy: 'created_at DESC');
@@ -93,7 +93,9 @@ class DatabaseHelper {
       );
 
       final images = imageRows.map(BatchImageModel.fromMap).toList();
-      result.add(BatchModel.fromMap(row, images));
+      if (!onlyWithImages || images.isNotEmpty) {
+        result.add(BatchModel.fromMap(row, images));
+      }
     }
     return result;
   }
@@ -111,6 +113,20 @@ class DatabaseHelper {
     );
     final images = imageRows.map(BatchImageModel.fromMap).toList();
     return BatchModel.fromMap(batchRows.first, images);
+  }
+
+  Future<void> deleteBatch(String id) async {
+    final db = await database;
+    await db.delete('batch_images', where: 'batch_id = ?', whereArgs: [id]);
+    await db.delete('batches', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteEmptyBatches() async {
+    final db = await database;
+    await db.rawDelete('''
+      DELETE FROM batches 
+      WHERE id NOT IN (SELECT DISTINCT batch_id FROM batch_images)
+    ''');
   }
 
   Future<void> close() async {

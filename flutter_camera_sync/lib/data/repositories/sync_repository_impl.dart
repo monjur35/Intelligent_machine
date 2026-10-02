@@ -27,12 +27,15 @@ class SyncRepositoryImpl implements SyncRepository {
     _refreshBatches();
   }
 
+  BatchEntity? _pendingBatch;
+
   @override
   Stream<List<BatchEntity>> get batchesStream =>
       _batchesStreamController.stream;
 
   Future<void> _refreshBatches() async {
-    final batches = await dbHelper.getBatches();
+    await dbHelper.deleteEmptyBatches();
+    final batches = await dbHelper.getBatches(onlyWithImages: true);
     if (!_batchesStreamController.isClosed) {
       _batchesStreamController.add(batches);
     }
@@ -40,7 +43,8 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<List<BatchEntity>> getAllBatches() async {
-    return await dbHelper.getBatches();
+    await dbHelper.deleteEmptyBatches();
+    return await dbHelper.getBatches(onlyWithImages: true);
   }
 
   @override
@@ -57,13 +61,30 @@ class SyncRepositoryImpl implements SyncRepository {
       retryCount: 0,
     );
 
-    await dbHelper.insertBatch(batch);
-    await _refreshBatches();
+    // Keep batch metadata in-memory until a photo is actually captured.
+    // If no photo is captured, no batch is created in the database.
+    _pendingBatch = batch;
     return batch;
   }
 
   @override
   Future<void> addImageToBatch(String batchId, BatchImageEntity image) async {
+    // Ensure the batch header exists in SQLite before adding the photo (foreign key constraint)
+    final existingBatch = await dbHelper.getBatch(batchId);
+    if (existingBatch == null) {
+      final batchToInsert = (_pendingBatch != null && _pendingBatch!.id == batchId)
+          ? BatchModel.fromEntity(_pendingBatch!)
+          : BatchModel(
+              id: batchId,
+              name:
+                  'BATCH_${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}.raw',
+              createdAt: DateTime.now(),
+              status: BatchStatus.queued,
+              retryCount: 0,
+            );
+      await dbHelper.insertBatch(batchToInsert);
+    }
+
     final imageModel = BatchImageModel.fromEntity(image);
     await dbHelper.insertImage(imageModel);
     await _refreshBatches();
@@ -72,7 +93,7 @@ class SyncRepositoryImpl implements SyncRepository {
   @override
   Future<void> queueBatchForUpload(String batchId) async {
     final batch = await dbHelper.getBatch(batchId);
-    if (batch != null) {
+    if (batch != null && batch.images.isNotEmpty) {
       final updated = batch.copyWith(status: BatchStatus.queued);
       await dbHelper.updateBatch(BatchModel.fromEntity(updated));
       await _refreshBatches();
@@ -82,6 +103,9 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<bool> uploadBatch(BatchEntity batch) async {
+    if (batch.images.isEmpty) {
+      return false;
+    }
     final isOnline = await networkInfo.isConnected;
     if (!isOnline) {
       // Must remain in local queue when offline per assessment specification
@@ -128,7 +152,7 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<void> processSyncQueue() async {
-    final batches = await dbHelper.getBatches();
+    final batches = await getAllBatches();
     final pending = batches.where((b) =>
         (b.status == BatchStatus.queued || b.status == BatchStatus.failed) &&
         b.images.isNotEmpty);
@@ -144,8 +168,8 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<void> retryFailedBatches() async {
-    final batches = await dbHelper.getBatches();
-    final failed = batches.where((b) => b.status == BatchStatus.failed);
+    final batches = await getAllBatches();
+    final failed = batches.where((b) => b.status == BatchStatus.failed && b.images.isNotEmpty);
 
     for (final batch in failed) {
       final queued = batch.copyWith(status: BatchStatus.queued);

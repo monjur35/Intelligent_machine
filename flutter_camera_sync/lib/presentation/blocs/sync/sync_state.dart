@@ -18,13 +18,18 @@ class SyncState extends Equatable {
     this.message,
   });
 
+  List<BatchEntity> get validBatches =>
+      batches.where((b) => b.images.isNotEmpty).toList();
+
   int get pendingCount => batches
       .where((b) =>
-          b.status == BatchStatus.queued || b.status == BatchStatus.failed)
+          (b.status == BatchStatus.queued || b.status == BatchStatus.failed) &&
+          b.images.isNotEmpty)
       .length;
 
-  int get syncedCount =>
-      batches.where((b) => b.status == BatchStatus.synced).length;
+  int get syncedCount => batches
+      .where((b) => b.status == BatchStatus.synced && b.images.isNotEmpty)
+      .length;
 
   SyncState copyWith({
     List<BatchEntity>? batches,

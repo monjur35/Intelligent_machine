@@ -79,7 +79,7 @@ class UploadManagerScreen extends StatelessWidget {
           }
         },
         builder: (context, syncState) {
-          final batches = syncState.batches;
+          final batches = syncState.validBatches;
           final isSyncing = syncState.syncStatus == SyncEngineStatus.running;
 
           return Column(
@@ -187,7 +187,7 @@ class UploadManagerScreen extends StatelessWidget {
             children: [
               _buildStatCounter(
                 'TOTAL',
-                '${syncState.batches.length}',
+                '${syncState.validBatches.length}',
                 Colors.white,
               ),
               Container(width: 1, height: 32, color: AppTheme.surfaceBorder),

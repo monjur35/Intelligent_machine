@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_camera_sync/domain/entities/batch_entity.dart';
 import 'package:flutter_camera_sync/domain/entities/batch_image_entity.dart';
+import 'package:flutter_camera_sync/presentation/blocs/sync/sync_state.dart';
 import 'package:flutter_camera_sync/presentation/widgets/status_pill.dart';
 import 'package:flutter_camera_sync/presentation/widgets/zoom_control_bar.dart';
 
@@ -57,16 +58,47 @@ void main() {
       expect(batch.status, equals(BatchStatus.queued));
       expect(batch.retryCount, equals(0));
     });
+
+    test('SyncState filters out empty batches with 0 photos', () {
+      final emptyBatch = BatchEntity(
+        id: 'batch-empty',
+        name: 'BATCH_EMPTY',
+        createdAt: DateTime.now(),
+        images: const [],
+        status: BatchStatus.queued,
+      );
+
+      final img = BatchImageEntity(
+        id: 'img-1',
+        batchId: 'batch-valid',
+        filePath: '/tmp/img.jpg',
+        fileSizeBytes: 1024,
+        capturedAt: DateTime.now(),
+      );
+      final validBatch = BatchEntity(
+        id: 'batch-valid',
+        name: 'BATCH_VALID',
+        createdAt: DateTime.now(),
+        images: [img],
+        status: BatchStatus.queued,
+      );
+
+      final state = SyncState(batches: [emptyBatch, validBatch]);
+
+      // Only the non-empty batch should be valid and counted as pending
+      expect(state.validBatches.length, equals(1));
+      expect(state.validBatches.first.id, equals('batch-valid'));
+      expect(state.pendingCount, equals(1));
+    });
   });
 
   group('Presentation Widgets Tests', () {
-    testWidgets('StatusPill displays correct status text and colors',
-        (WidgetTester tester) async {
+    testWidgets('StatusPill displays correct status text and colors', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(
-            body: StatusPill(status: BatchStatus.synced),
-          ),
+          home: Scaffold(body: StatusPill(status: BatchStatus.synced)),
         ),
       );
 
@@ -74,8 +106,9 @@ void main() {
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     });
 
-    testWidgets('ZoomControlBar renders discrete ratio buttons',
-        (WidgetTester tester) async {
+    testWidgets('ZoomControlBar renders discrete ratio buttons', (
+      WidgetTester tester,
+    ) async {
       double selectedRatio = 1.0;
 
       await tester.pumpWidget(
