@@ -17,11 +17,18 @@ class LocationRepositoryImpl(
 
     override fun observeCurrentLocation(): Flow<LocationCoordinates> {
         return locationClient.getLocationUpdates(intervalMs = 2500L)
-            .catch { emit(LocationCoordinates(0.0, 0.0, 0f, 0L)) }
     }
 
     override suspend fun getCurrentLocation(): LocationCoordinates? {
         return locationClient.getCurrentLocation()
+    }
+
+    override fun observeGpsStatus(): Flow<Boolean> {
+        return locationClient.observeGpsStatus()
+    }
+
+    override fun isGpsEnabled(): Boolean {
+        return locationClient.isGpsEnabled()
     }
 
     override fun calculateDistanceMeters(

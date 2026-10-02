@@ -80,6 +80,7 @@ fun AttendanceScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 val hasPermission = checkLocationPermission(context)
                 viewModel.onPermissionResult(hasPermission)
+                viewModel.checkGpsStatus()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -142,7 +143,8 @@ fun AttendanceScreen(
                         viewModel.onSetOfficeLocationClicked()
                     }
                 },
-                isLoading = uiState.isLoading
+                isLoading = uiState.isLoading,
+                isGpsEnabled = uiState.isGpsEnabled
             )
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -14,4 +14,12 @@ class ObserveCurrentLocationUseCase(
     suspend fun getCurrentLocation(): LocationCoordinates? {
         return locationRepository.getCurrentLocation()
     }
+
+    fun observeGpsStatus(): Flow<Boolean> {
+        return locationRepository.observeGpsStatus()
+    }
+
+    fun isGpsEnabled(): Boolean {
+        return locationRepository.isGpsEnabled()
+    }
 }

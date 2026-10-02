@@ -36,9 +36,11 @@ class AttendanceViewModel @Inject constructor(
     val uiState: StateFlow<AttendanceUiState> = _uiState.asStateFlow()
 
     private var locationUpdatesJob: Job? = null
+    private var gpsStatusJob: Job? = null
 
     init {
         observeSavedOfficeLocation()
+        observeGpsStatus()
     }
 
     private fun observeSavedOfficeLocation() {
@@ -52,10 +54,67 @@ class AttendanceViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    fun onPermissionResult(isGranted: Boolean) {
-        _uiState.update { it.copy(hasLocationPermission = isGranted) }
-        if (isGranted) {
+    private fun observeGpsStatus() {
+        gpsStatusJob?.cancel()
+        gpsStatusJob = observeCurrentLocationUseCase.observeGpsStatus()
+            .onEach { isGpsOn ->
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        isGpsEnabled = isGpsOn,
+                        errorMessage = if (!isGpsOn) {
+                            "GPS is disabled. Please turn on Location services."
+                        } else if (currentState.errorMessage?.contains("GPS", ignoreCase = true) == true) {
+                            null
+                        } else {
+                            currentState.errorMessage
+                        }
+                    )
+                }
+
+                if (isGpsOn) {
+                    if (_uiState.value.hasLocationPermission) {
+                        startObservingLocation()
+                    }
+                } else {
+                    stopObservingLocation()
+                    _uiState.update { it.copy(currentLocation = null) }
+                    recalculateDistance()
+                }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    fun checkGpsStatus() {
+        val isGpsOn = observeCurrentLocationUseCase.isGpsEnabled()
+        _uiState.update { currentState ->
+            currentState.copy(
+                isGpsEnabled = isGpsOn,
+                errorMessage = if (!isGpsOn) {
+                    "GPS is disabled. Please turn on Location services."
+                } else if (currentState.errorMessage?.contains("GPS", ignoreCase = true) == true) {
+                    null
+                } else {
+                    currentState.errorMessage
+                }
+            )
+        }
+        if (isGpsOn && _uiState.value.hasLocationPermission) {
             startObservingLocation()
+        }
+    }
+
+    fun onPermissionResult(isGranted: Boolean) {
+        val isGpsOn = observeCurrentLocationUseCase.isGpsEnabled()
+        _uiState.update {
+            it.copy(
+                hasLocationPermission = isGranted,
+                isGpsEnabled = isGpsOn
+            )
+        }
+        if (isGranted) {
+            if (isGpsOn) {
+                startObservingLocation()
+            }
         } else {
             stopObservingLocation()
             _uiState.update {
@@ -65,18 +124,22 @@ class AttendanceViewModel @Inject constructor(
     }
 
     fun startObservingLocation() {
-        if (!_uiState.value.hasLocationPermission) return
+        if (!_uiState.value.hasLocationPermission || !_uiState.value.isGpsEnabled) return
 
-        locationUpdatesJob?.cancel()
+        if (locationUpdatesJob?.isActive == true) return
+
         locationUpdatesJob = observeCurrentLocationUseCase()
             .onEach { coords ->
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        currentLocation = coords,
-                        isGpsEnabled = true
-                    )
+                if (coords.latitude != 0.0 || coords.longitude != 0.0) {
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            currentLocation = coords,
+                            isGpsEnabled = true,
+                            errorMessage = if (currentState.errorMessage?.contains("GPS", ignoreCase = true) == true) null else currentState.errorMessage
+                        )
+                    }
+                    recalculateDistance()
                 }
-                recalculateDistance()
             }
             .catch { error ->
                 _uiState.update {
@@ -96,8 +159,23 @@ class AttendanceViewModel @Inject constructor(
 
     fun onSetOfficeLocationClicked() {
         viewModelScope.launch {
+            val isGpsOn = observeCurrentLocationUseCase.isGpsEnabled()
+            if (!isGpsOn) {
+                _uiState.update {
+                    it.copy(
+                        isGpsEnabled = false,
+                        errorMessage = "GPS is disabled. Please enable GPS on your device."
+                    )
+                }
+                return@launch
+            }
+
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
+                if (locationUpdatesJob?.isActive != true && _uiState.value.hasLocationPermission) {
+                    startObservingLocation()
+                }
+
                 val current = _uiState.value.currentLocation
                     ?: observeCurrentLocationUseCase.getCurrentLocation()
 
@@ -112,6 +190,7 @@ class AttendanceViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             officeLocation = newOffice,
+                            currentLocation = current,
                             isLoading = false,
                             successMessage = "Office coordinates updated successfully!"
                         )

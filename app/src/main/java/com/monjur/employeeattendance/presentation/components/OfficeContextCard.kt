@@ -1,5 +1,6 @@
 package com.monjur.employeeattendance.presentation.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,12 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,7 +45,8 @@ fun OfficeContextCard(
     officeLocation: OfficeLocation?,
     onSetLocationClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    isGpsEnabled: Boolean = true
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -56,14 +60,14 @@ fun OfficeContextCard(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header: Step 1 with status dot
+            // Header: Status dot reflecting GPS and Office Location status
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "STEP 1: OFFICE CONTEXT",
+                    text = "OFFICE CONTEXT",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF64748B),
@@ -73,7 +77,13 @@ fun OfficeContextCard(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(if (officeLocation != null) Color(0xFF2563EB) else Color(0xFFCBD5E1))
+                        .background(
+                            when {
+                                !isGpsEnabled -> Color(0xFFEF4444)
+                                officeLocation != null -> Color(0xFF2563EB)
+                                else -> Color(0xFFCBD5E1)
+                            }
+                        )
                 )
             }
 
@@ -106,8 +116,8 @@ fun OfficeContextCard(
                 }
 
                 // Coordinates pill badge
-                val latStr = officeLocation?.let { String.format(Locale.US, "%.4f", it.latitude) } ?: "40.7128"
-                val lonStr = officeLocation?.let { String.format(Locale.US, "%.4f", it.longitude) } ?: "-74.0068"
+                val latStr = officeLocation?.let { String.format(Locale.US, "%.4f", it.latitude) } ?: ""
+                val lonStr = officeLocation?.let { String.format(Locale.US, "%.4f", it.longitude) } ?: ""
 
                 Box(
                     modifier = Modifier
@@ -125,7 +135,11 @@ fun OfficeContextCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Lat: $latStr, Lon: $lonStr",
+                            text = if (latStr.isNotEmpty() && lonStr.isNotEmpty()) {
+                                "Lat: $latStr, Lon: $lonStr"
+                            } else {
+                                "No Office Set"
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF334155)
@@ -146,36 +160,76 @@ fun OfficeContextCard(
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
 
+            // Warning message if GPS is disabled
+            if (!isGpsEnabled) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFEF2F2),
+                    border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOff,
+                            contentDescription = "GPS Disabled",
+                            modifier = Modifier.size(18.dp),
+                            tint = Color(0xFFDC2626)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "GPS is disabled. Please enable GPS on your device to set office location.",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFDC2626),
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Outlined Set Office Location Button
+            // Outlined Set / Update Office Location Button
             OutlinedButton(
                 onClick = onSetLocationClick,
-                enabled = !isLoading,
+                enabled = !isLoading && isGpsEnabled,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(24.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF2563EB)),
+                border = BorderStroke(
+                    1.5.dp,
+                    if (!isGpsEnabled) Color(0xFFCBD5E1) else Color(0xFF2563EB)
+                ),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFF2563EB)
+                    contentColor = Color(0xFF2563EB),
+                    disabledContentColor = Color(0xFF94A3B8)
                 ),
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.MyLocation,
+                    imageVector = if (!isGpsEnabled) Icons.Default.LocationOff else Icons.Default.MyLocation,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = Color(0xFF2563EB)
+                    tint = if (!isGpsEnabled) Color(0xFF94A3B8) else Color(0xFF2563EB)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isLoading) "Updating Coordinates..." else "Set Office Location",
+                    text = when {
+                        !isGpsEnabled -> "GPS Disabled"
+                        isLoading -> "Updating Coordinates..."
+                        officeLocation != null -> "Update Office Location"
+                        else -> "Set Office Location"
+                    },
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF2563EB)
+                    color = if (!isGpsEnabled) Color(0xFF94A3B8) else Color(0xFF2563EB)
                 )
             }
-        }
+        } 
     }
 }
