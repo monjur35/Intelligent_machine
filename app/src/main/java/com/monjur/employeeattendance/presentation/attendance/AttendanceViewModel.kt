@@ -208,7 +208,7 @@ class AttendanceViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "Error setting office location: ${e.message}"
+                        errorMessage = "Error setting office location: ${e.localizedMessage}"
                     )
                 }
             }
@@ -269,7 +269,7 @@ class AttendanceViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = error.message ?: "Failed to mark attendance."
+                            errorMessage = error.localizedMessage ?: "Failed to mark attendance."
                         )
                     }
                 }
@@ -343,27 +343,5 @@ class AttendanceViewModel @Inject constructor(
                 }
             }
         }
-    }
-}
-
-class AttendanceViewModelFactory(
-    private val saveOfficeLocationUseCase: SaveOfficeLocationUseCase,
-    private val getOfficeLocationUseCase: GetOfficeLocationUseCase,
-    private val observeCurrentLocationUseCase: ObserveCurrentLocationUseCase,
-    private val calculateDistanceUseCase: CalculateDistanceUseCase,
-    private val markAttendanceUseCase: MarkAttendanceUseCase
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(AttendanceViewModel::class.java)) {
-            return AttendanceViewModel(
-                saveOfficeLocationUseCase,
-                getOfficeLocationUseCase,
-                observeCurrentLocationUseCase,
-                calculateDistanceUseCase,
-                markAttendanceUseCase
-            ) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

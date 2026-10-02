@@ -39,6 +39,8 @@ fun AttendanceActionCard(
     isLoading: Boolean,
     onMarkAttendanceClick: () -> Unit,
     modifier: Modifier = Modifier,
+    hasLocationPermission: Boolean = true,
+    isLiveGps: Boolean = true,
     availabilityWindow: String = "AVAILABLE 09:00 AM - 10:30 AM"
 ) {
     Card(
@@ -53,10 +55,13 @@ fun AttendanceActionCard(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val isPermissionRequired = isLiveGps && !hasLocationPermission
+
             // Lock / Success Icon in circular background
             val iconBgColor by animateColorAsState(
                 targetValue = when {
                     isAttendanceMarked -> Color(0xFFDCFCE7) // Light Green
+                    isPermissionRequired -> Color(0xFFFEF3C7) // Light Amber
                     isWithinGeofence -> Color(0xFFDBEAFE) // Light Blue
                     else -> Color(0xFFF1F5F9) // Light Slate
                 },
@@ -66,6 +71,7 @@ fun AttendanceActionCard(
             val iconColor by animateColorAsState(
                 targetValue = when {
                     isAttendanceMarked -> Color(0xFF16A34A)
+                    isPermissionRequired -> Color(0xFFD97706) // Amber
                     isWithinGeofence -> Color(0xFF2563EB)
                     else -> Color(0xFF94A3B8)
                 },
@@ -90,7 +96,7 @@ fun AttendanceActionCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Action Pill Button
-            val isButtonEnabled = isWithinGeofence && !isLoading && !isAttendanceMarked
+            val isButtonEnabled = (isWithinGeofence || isPermissionRequired) && !isLoading && !isAttendanceMarked
 
             Button(
                 onClick = onMarkAttendanceClick,
@@ -116,6 +122,7 @@ fun AttendanceActionCard(
                     Text(
                         text = when {
                             isAttendanceMarked -> "Attendance Recorded"
+                            isPermissionRequired -> "Grant Location Permission"
                             isWithinGeofence -> "Mark Attendance"
                             else -> "Mark Attendance"
                         },
@@ -129,10 +136,10 @@ fun AttendanceActionCard(
 
             // Availability footer
             Text(
-                text = availabilityWindow,
+                text = if (isPermissionRequired) "LOCATION PERMISSION NEEDED" else availabilityWindow,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF94A3B8),
+                color = if (isPermissionRequired) Color(0xFFD97706) else Color(0xFF94A3B8),
                 letterSpacing = 0.8.sp
             )
         }

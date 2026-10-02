@@ -45,6 +45,7 @@ import androidx.core.content.PermissionChecker
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.monjur.employeeattendance.domain.model.SimulationMode
 import com.monjur.employeeattendance.presentation.components.AttendanceActionCard
 import com.monjur.employeeattendance.presentation.components.AttendanceTopBar
 import com.monjur.employeeattendance.presentation.components.DistanceMeterGauge
@@ -163,8 +164,14 @@ fun AttendanceScreen(
                 isWithinGeofence = uiState.isWithinGeofence,
                 isAttendanceMarked = uiState.isAttendanceMarked,
                 isLoading = uiState.isLoading,
+                hasLocationPermission = uiState.hasLocationPermission,
+                isLiveGps = uiState.simulationMode == SimulationMode.REAL_GPS,
                 onMarkAttendanceClick = {
-                    viewModel.onMarkAttendanceClicked()
+                    if (uiState.simulationMode == SimulationMode.REAL_GPS && (!uiState.hasLocationPermission || !checkLocationPermission(context))) {
+                        showPermissionRationale = true
+                    } else {
+                        viewModel.onMarkAttendanceClicked()
+                    }
                 }
             )
 
