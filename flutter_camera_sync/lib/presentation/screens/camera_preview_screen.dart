@@ -2,6 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_theme.dart';
 import '../../domain/entities/camera_config_entity.dart';
 import '../blocs/camera/camera_bloc.dart';
@@ -20,24 +21,151 @@ class CameraPreviewScreen extends StatefulWidget {
   State<CameraPreviewScreen> createState() => _CameraPreviewScreenState();
 }
 
-class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
+class _CameraPreviewScreenState extends State<CameraPreviewScreen>
+    with WidgetsBindingObserver {
   double _baseScale = 1.0;
   double _currentScale = 1.0;
   Offset? _tapFocusOffset;
+  bool _hasCameraPermission = true;
+  bool _isDialogOpen = false;
 
   @override
   void initState() {
     super.initState();
-    // Initialize hardware or simulated camera session
-    context.read<CameraBloc>().add(InitializeCameraEvent());
+    WidgetsBinding.instance.addObserver(this);
+    _checkCameraPermission();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkCameraPermission();
+    }
+  }
+
+  Future<void> _checkCameraPermission() async {
+    final status = await Permission.camera.status;
+    final isGranted = status.isGranted;
+
+    if (!mounted) return;
+
+    setState(() {
+      _hasCameraPermission = isGranted;
+    });
+
+    if (isGranted) {
+      if (_isDialogOpen && Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isDialogOpen = false;
+      }
+      context.read<CameraBloc>().add(InitializeCameraEvent());
+    } else {
+      _showPermissionDialog();
+    }
+  }
+
+  void _showPermissionDialog() {
+    if (_isDialogOpen || !mounted) return;
+    _isDialogOpen = true;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: AppTheme.cyanAccent.withValues(alpha: 0.3)),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.videocam_off_rounded, color: Colors.amberAccent, size: 26),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Camera Permission Required',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Camera access is required to capture employee attendance photos. All camera actions are disabled until permission is granted.',
+            style: TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _isDialogOpen = false;
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white60),
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.cyanAccent,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              icon: const Icon(Icons.check_circle_outline, size: 18),
+              label: const Text(
+                'Give Permission',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onPressed: () async {
+                final status = await Permission.camera.request();
+                if (status.isGranted) {
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                    _isDialogOpen = false;
+                  }
+                  if (mounted) {
+                    setState(() {
+                      _hasCameraPermission = true;
+                    });
+                    context.read<CameraBloc>().add(InitializeCameraEvent());
+                  }
+                } else if (status.isPermanentlyDenied) {
+                  await openAppSettings();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      _isDialogOpen = false;
+    });
   }
 
   void _onScaleStart(ScaleStartDetails details) {
+    if (!_hasCameraPermission) return;
     _baseScale = _currentScale;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details, CameraConfigEntity config) {
-    if (details.scale == 1.0) return;
+    if (!_hasCameraPermission || details.scale == 1.0) return;
     final newZoom = (_baseScale * details.scale).clamp(config.minZoom, config.maxZoom);
     setState(() {
       _currentScale = newZoom;
@@ -46,6 +174,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
   }
 
   void _onTapDown(TapDownDetails details, BoxConstraints constraints) {
+    if (!_hasCameraPermission) return;
     final local = details.localPosition;
     setState(() {
       _tapFocusOffset = local;
@@ -87,9 +216,13 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // 1. Camera Viewfinder (Hardware Camera or Simulated Viewfinder)
+                // 1. Camera Viewfinder (Hardware Camera, Simulated Viewfinder, or Permission Denied UI)
                 LayoutBuilder(
                   builder: (context, constraints) {
+                    if (!_hasCameraPermission) {
+                      return _buildPermissionDeniedViewfinder();
+                    }
+
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onScaleStart: _onScaleStart,
@@ -127,18 +260,22 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Flash Toggle Button
+                      // Flash Toggle Button (disabled if no permission)
                       _buildGlassIconButton(
                         icon: config.isFlashEnabled
                             ? Icons.flash_on_rounded
                             : Icons.flash_off_rounded,
-                        color: config.isFlashEnabled
-                            ? Colors.amberAccent
-                            : Colors.white,
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.read<CameraBloc>().add(ToggleFlashEvent());
-                        },
+                        color: !_hasCameraPermission
+                            ? Colors.white24
+                            : (config.isFlashEnabled
+                                ? Colors.amberAccent
+                                : Colors.white),
+                        onTap: !_hasCameraPermission
+                            ? null
+                            : () {
+                                HapticFeedback.lightImpact();
+                                context.read<CameraBloc>().add(ToggleFlashEvent());
+                              },
                       ),
 
                       // Active Batch Badge
@@ -240,24 +377,30 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                   top: 100,
                   bottom: 140,
                   child: Center(
-                    child: ZoomControlBar(
-                      currentZoom: config.currentZoom,
-                      minZoom: config.minZoom,
-                      maxZoom: config.maxZoom,
-                      availableRatios: config.availableRatios,
-                      onZoomChanged: (zoom) {
-                        setState(() {
-                          _currentScale = zoom;
-                        });
-                        context.read<CameraBloc>().add(ChangeZoomEvent(zoom));
-                      },
-                      onRatioSelected: (ratio) {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          _currentScale = ratio;
-                        });
-                        context.read<CameraBloc>().add(SetZoomRatioEvent(ratio));
-                      },
+                    child: AbsorbPointer(
+                      absorbing: !_hasCameraPermission,
+                      child: Opacity(
+                        opacity: !_hasCameraPermission ? 0.35 : 1.0,
+                        child: ZoomControlBar(
+                          currentZoom: config.currentZoom,
+                          minZoom: config.minZoom,
+                          maxZoom: config.maxZoom,
+                          availableRatios: config.availableRatios,
+                          onZoomChanged: (zoom) {
+                            setState(() {
+                              _currentScale = zoom;
+                            });
+                            context.read<CameraBloc>().add(ChangeZoomEvent(zoom));
+                          },
+                          onRatioSelected: (ratio) {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _currentScale = ratio;
+                            });
+                            context.read<CameraBloc>().add(SetZoomRatioEvent(ratio));
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -271,7 +414,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Sub-status info
-                      if (isSimulated)
+                      if (isSimulated && _hasCameraPermission)
                         Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.symmetric(
@@ -295,31 +438,41 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // "NEW BATCH" Button
+                          // "NEW BATCH" Button (disabled if no permission)
                           Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _buildGlassIconButton(
                                 icon: Icons.create_new_folder_outlined,
-                                color: Colors.white,
+                                color: !_hasCameraPermission
+                                    ? Colors.white24
+                                    : Colors.white,
                                 size: 48,
                                 iconSize: 22,
-                                onTap: () {
-                                  HapticFeedback.mediumImpact();
-                                  context.read<CameraBloc>().add(NewBatchEvent());
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Started new capture batch'),
-                                      duration: Duration(seconds: 1),
-                                    ),
-                                  );
-                                },
+                                onTap: !_hasCameraPermission
+                                    ? null
+                                    : () {
+                                        HapticFeedback.mediumImpact();
+                                        context
+                                            .read<CameraBloc>()
+                                            .add(NewBatchEvent());
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                                'Started new capture batch'),
+                                            duration: Duration(seconds: 1),
+                                          ),
+                                        );
+                                      },
                               ),
                               const SizedBox(height: 4),
-                              const Text(
+                              Text(
                                 'NEW BATCH',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: !_hasCameraPermission
+                                      ? Colors.white30
+                                      : Colors.white70,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -327,13 +480,15 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                             ],
                           ),
 
-                          // Large Shutter Button with Burst/Photo Count Badge
+                          // Large Shutter Button (disabled if no permission)
                           GestureDetector(
-                            onTap: cameraState.isCapturing
+                            onTap: (!_hasCameraPermission || cameraState.isCapturing)
                                 ? null
                                 : () {
                                     HapticFeedback.heavyImpact();
-                                    context.read<CameraBloc>().add(CapturePhotoEvent());
+                                    context
+                                        .read<CameraBloc>()
+                                        .add(CapturePhotoEvent());
                                   },
                             child: Stack(
                               alignment: Alignment.center,
@@ -345,9 +500,11 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: cameraState.isCapturing
-                                          ? AppTheme.cyanAccent
-                                          : Colors.white,
+                                      color: !_hasCameraPermission
+                                          ? Colors.white24
+                                          : (cameraState.isCapturing
+                                              ? AppTheme.cyanAccent
+                                              : Colors.white),
                                       width: 4,
                                     ),
                                   ),
@@ -359,16 +516,21 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                                   height: cameraState.isCapturing ? 62 : 68,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: cameraState.isCapturing
-                                        ? AppTheme.cyanGlow
-                                        : Colors.white,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.cyanAccent.withOpacity(0.4),
-                                        blurRadius: 16,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
+                                    color: !_hasCameraPermission
+                                        ? Colors.white12
+                                        : (cameraState.isCapturing
+                                            ? AppTheme.cyanGlow
+                                            : Colors.white),
+                                    boxShadow: !_hasCameraPermission
+                                        ? null
+                                        : [
+                                            BoxShadow(
+                                              color: AppTheme.cyanAccent
+                                                  .withOpacity(0.4),
+                                              blurRadius: 16,
+                                              spreadRadius: 2,
+                                            ),
+                                          ],
                                   ),
                                   child: Center(
                                     child: cameraState.isCapturing
@@ -377,20 +539,26 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
                                             height: 24,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2.5,
-                                              valueColor: AlwaysStoppedAnimation(
-                                                  Colors.black),
+                                              valueColor:
+                                                  AlwaysStoppedAnimation(
+                                                      Colors.black),
                                             ),
                                           )
-                                        : const Icon(
-                                            Icons.camera_alt,
-                                            color: Colors.black,
+                                        : Icon(
+                                            !_hasCameraPermission
+                                                ? Icons.videocam_off_outlined
+                                                : Icons.camera_alt,
+                                            color: !_hasCameraPermission
+                                                ? Colors.white38
+                                                : Colors.black,
                                             size: 28,
                                           ),
                                   ),
                                 ),
 
                                 // Photo burst count badge
-                                if (cameraState.activeBatch != null &&
+                                if (_hasCameraPermission &&
+                                    cameraState.activeBatch != null &&
                                     cameraState.activeBatch!.images.isNotEmpty)
                                   Positioned(
                                     top: 0,
@@ -519,6 +687,75 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
     );
   }
 
+  Widget _buildPermissionDeniedViewfinder() {
+    return Container(
+      color: const Color(0xFF0F172A),
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.redAccent.withValues(alpha: 0.12),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
+              ),
+              child: const Icon(
+                Icons.videocam_off_rounded,
+                color: Colors.redAccent,
+                size: 38,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'CAMERA PERMISSION REQUIRED',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Camera access is currently disabled. All capture, flash, and zoom actions are unavailable until permission is granted.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.cyanAccent,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              icon: const Icon(Icons.security, size: 18),
+              label: const Text(
+                'Give Permission',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              onPressed: _showPermissionDialog,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLoadingViewfinder() {
     return const Center(
       child: CircularProgressIndicator(
@@ -538,22 +775,26 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen> {
   Widget _buildGlassIconButton({
     required IconData icon,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     double size = 44,
     double iconSize = 22,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(size / 2),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.55),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.15)),
+    final isEnabled = onTap != null;
+    return Opacity(
+      opacity: isEnabled ? 1.0 : 0.4,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(size / 2),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.55),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.15)),
+          ),
+          child: Icon(icon, color: color, size: iconSize),
         ),
-        child: Icon(icon, color: color, size: iconSize),
       ),
     );
   }
