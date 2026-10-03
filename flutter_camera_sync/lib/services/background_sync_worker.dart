@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 import '../data/datasources/local/database_helper.dart';
 import '../data/datasources/remote/mock_upload_api.dart';
@@ -11,6 +12,7 @@ const String syncUploadQueueTask = "com.monjur.aerosync.sync_upload_queue";
 void callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     try {
+      WidgetsFlutterBinding.ensureInitialized();
       debugPrint('[BackgroundSyncWorker] Executing headless task: $taskName');
       final dbHelper = DatabaseHelper.instance;
       final remoteApi = MockUploadApiClient();
@@ -69,12 +71,16 @@ class BackgroundSyncService {
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       try {
         await Workmanager().registerOneOffTask(
-          "aerosync-oneoff-${DateTime.now().millisecondsSinceEpoch}",
+          "aerosync-oneoff-sync",
           syncUploadQueueTask,
           constraints: Constraints(
             networkType: NetworkType.connected,
           ),
+          existingWorkPolicy: ExistingWorkPolicy.keep,
+          backoffPolicy: BackoffPolicy.exponential,
+          backoffPolicyDelay: const Duration(seconds: 15),
         );
+        debugPrint('[BackgroundSyncWorker] Registered one-off background sync task.');
       } catch (e) {
         debugPrint('[BackgroundSyncWorker] One-off sync scheduling warning: $e');
       }

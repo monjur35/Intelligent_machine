@@ -13,6 +13,7 @@ class SyncRepositoryImpl implements SyncRepository {
   final DatabaseHelper dbHelper;
   final RemoteSyncApi remoteApi;
   final NetworkInfo networkInfo;
+  final Future<void> Function()? onSyncNeeded;
 
   final _batchesStreamController =
       StreamController<List<BatchEntity>>.broadcast();
@@ -21,6 +22,7 @@ class SyncRepositoryImpl implements SyncRepository {
     DatabaseHelper? dbHelper,
     RemoteSyncApi? remoteApi,
     NetworkInfo? networkInfo,
+    this.onSyncNeeded,
   })  : dbHelper = dbHelper ?? DatabaseHelper.instance,
         remoteApi = remoteApi ?? MockUploadApiClient(),
         networkInfo = networkInfo ?? NetworkInfoImpl() {
@@ -88,6 +90,7 @@ class SyncRepositoryImpl implements SyncRepository {
     final imageModel = BatchImageModel.fromEntity(image);
     await dbHelper.insertImage(imageModel);
     await _refreshBatches();
+    onSyncNeeded?.call();
   }
 
   @override
@@ -115,6 +118,7 @@ class SyncRepositoryImpl implements SyncRepository {
       );
       await dbHelper.updateBatch(BatchModel.fromEntity(updated));
       await _refreshBatches();
+      onSyncNeeded?.call();
       return false;
     }
 
@@ -146,6 +150,7 @@ class SyncRepositoryImpl implements SyncRepository {
       );
       await dbHelper.updateBatch(BatchModel.fromEntity(failedBatch));
       await _refreshBatches();
+      onSyncNeeded?.call();
     }
     return false;
   }

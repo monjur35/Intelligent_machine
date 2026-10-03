@@ -42,6 +42,7 @@ void main() async {
     dbHelper: dbHelper,
     remoteApi: remoteApi,
     networkInfo: networkInfo,
+    onSyncNeeded: () => BackgroundSyncService().triggerImmediateSync(),
   );
 
   runApp(
