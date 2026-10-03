@@ -26,7 +26,10 @@ class UploadManagerScreen extends StatelessWidget {
             builder: (context, state) {
               return Container(
                 margin: const EdgeInsets.only(right: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: state.isOnline
                       ? AppTheme.statusSynced.withValues(alpha: 0.15)
@@ -67,13 +70,47 @@ class UploadManagerScreen extends StatelessWidget {
         ],
       ),
       body: BlocConsumer<SyncBloc, SyncState>(
+        listenWhen: (previous, current) =>
+            current.message != null &&
+            current.message!.trim().isNotEmpty &&
+            current.message != previous.message,
         listener: (context, state) {
-          if (state.message != null) {
+          final message = state.message;
+          if (message != null && message.trim().isNotEmpty) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.message!),
+                content: Row(
+                  children: [
+                    Icon(
+                      state.simulateNetworkFailure
+                          ? Icons.cloud_off
+                          : Icons.info_outline,
+                      color: state.simulateNetworkFailure
+                          ? AppTheme.statusFailed
+                          : AppTheme.cyanAccent,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        message,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 backgroundColor: AppTheme.cardBg,
-                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: AppTheme.surfaceBorder),
+                ),
+                duration: const Duration(seconds: 2),
               ),
             );
           }
@@ -97,9 +134,9 @@ class UploadManagerScreen extends StatelessWidget {
                         onPressed: (isSyncing || syncState.pendingCount == 0)
                             ? null
                             : () {
-                                context
-                                    .read<SyncBloc>()
-                                    .add(TriggerSyncAllEvent());
+                                context.read<SyncBloc>().add(
+                                  TriggerSyncAllEvent(),
+                                );
                               },
                         icon: isSyncing
                             ? const SizedBox(
@@ -107,8 +144,9 @@ class UploadManagerScreen extends StatelessWidget {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation(Colors.black),
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.black,
+                                  ),
                                 ),
                               )
                             : const Icon(Icons.sync_rounded, size: 18),
@@ -131,7 +169,9 @@ class UploadManagerScreen extends StatelessWidget {
                         foregroundColor: AppTheme.cyanAccent,
                         side: const BorderSide(color: AppTheme.cyanAccent),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
@@ -156,8 +196,8 @@ class UploadManagerScreen extends StatelessWidget {
                             batch: batch,
                             onUploadPressed: () {
                               context.read<SyncBloc>().add(
-                                    TriggerUploadBatchEvent(batch.id),
-                                  );
+                                TriggerUploadBatchEvent(batch.id),
+                              );
                             },
                           );
                         },
@@ -253,8 +293,8 @@ class UploadManagerScreen extends StatelessWidget {
                 activeThumbColor: AppTheme.statusFailed,
                 onChanged: (val) {
                   context.read<SyncBloc>().add(
-                        ToggleNetworkFailureSimulationEvent(val),
-                      );
+                    ToggleNetworkFailureSimulationEvent(val),
+                  );
                 },
               ),
             ],

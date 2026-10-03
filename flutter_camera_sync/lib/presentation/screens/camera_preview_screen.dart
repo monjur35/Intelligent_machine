@@ -74,8 +74,8 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
       // Backgrounded: release camera hardware to prevent battery drain or camera lockouts (fixes B4)
       if (_hasCameraPermission) {
         context.read<CameraBloc>().add(ReleaseCameraEvent());
@@ -319,11 +319,9 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (!isReady)
+                          if (!isReady || controller == null || !controller.value.isInitialized)
                             _buildLoadingViewfinder()
-                          else if (!isSimulated &&
-                              controller != null &&
-                              controller.value.isInitialized)
+                          else if (!isSimulated)
                             _buildHardwarePreview(controller)
                           else
                             _buildSimulatedViewfinder(config),
@@ -712,7 +710,10 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
 
   Widget _buildHardwarePreview(CameraController controller) {
     return Center(
-      child: CameraPreview(controller),
+      child: CameraPreview(
+        controller,
+        key: ValueKey('cam_${controller.cameraId}'),
+      ),
     );
   }
 

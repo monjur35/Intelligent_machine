@@ -41,18 +41,21 @@ class CameraDataSourceImpl implements CameraDataSource {
 
   @override
   Future<void> releaseCamera() async {
-    if (_controller != null) {
-      try {
-        await _controller!.dispose();
-      } catch (_) {}
-      _controller = null;
-    }
+    final oldController = _controller;
+    _controller = null;
     _updateConfig(_config.copyWith(isReady: false));
+    if (oldController != null) {
+      try {
+        await oldController.dispose();
+      } catch (_) {}
+    }
   }
 
   @override
   Future<void> switchBackLens(int index) async {
-    if (index >= 0 && index < _backCameras.length && index != _activeBackCameraIndex) {
+    if (index >= 0 &&
+        index < _backCameras.length &&
+        index != _activeBackCameraIndex) {
       _activeBackCameraIndex = index;
       await initialize(cameraIndex: index);
     }
@@ -73,10 +76,12 @@ class CameraDataSourceImpl implements CameraDataSource {
     _isInitializing = true;
     try {
       if (_controller != null) {
-        try {
-          await _controller!.dispose();
-        } catch (_) {}
+        final oldController = _controller;
         _controller = null;
+        _updateConfig(_config.copyWith(isReady: false));
+        try {
+          await oldController!.dispose();
+        } catch (_) {}
       }
 
       final cameras = await availableCameras();
@@ -92,7 +97,8 @@ class CameraDataSourceImpl implements CameraDataSource {
         _backCameras = cameras;
       }
 
-      final targetIndex = (cameraIndex != null && cameraIndex < _backCameras.length)
+      final targetIndex =
+          (cameraIndex != null && cameraIndex < _backCameras.length)
           ? cameraIndex
           : _activeBackCameraIndex.clamp(0, _backCameras.length - 1);
       _activeBackCameraIndex = targetIndex;
@@ -131,16 +137,18 @@ class CameraDataSourceImpl implements CameraDataSource {
         ratios.add(3.0);
       }
 
-      _updateConfig(_config.copyWith(
-        isReady: true,
-        isSimulated: false,
-        currentZoom: 1.0,
-        minZoom: minZoom,
-        maxZoom: maxZoom,
-        availableRatios: ratios,
-        backCameraCount: _backCameras.length,
-        activeBackCameraIndex: _activeBackCameraIndex,
-      ));
+      _updateConfig(
+        _config.copyWith(
+          isReady: true,
+          isSimulated: false,
+          currentZoom: 1.0,
+          minZoom: minZoom,
+          maxZoom: maxZoom,
+          availableRatios: ratios,
+          backCameraCount: _backCameras.length,
+          activeBackCameraIndex: _activeBackCameraIndex,
+        ),
+      );
     } on CameraException catch (e) {
       debugPrint("Camera hardware initialization failed: $e");
       _fallbackToSimulatedCamera("Camera hardware initialization failed.");
@@ -153,14 +161,16 @@ class CameraDataSourceImpl implements CameraDataSource {
   }
 
   void _fallbackToSimulatedCamera(String reason) {
-    _updateConfig(_config.copyWith(
-      isReady: true,
-      isSimulated: true,
-      currentZoom: 1.0,
-      minZoom: 1.0,
-      maxZoom: 4.0,
-      availableRatios: [0.5, 1.0, 2.0],
-    ));
+    _updateConfig(
+      _config.copyWith(
+        isReady: true,
+        isSimulated: true,
+        currentZoom: 1.0,
+        minZoom: 1.0,
+        maxZoom: 4.0,
+        availableRatios: [0.5, 1.0, 2.0],
+      ),
+    );
   }
 
   @override
@@ -211,7 +221,9 @@ class CameraDataSourceImpl implements CameraDataSource {
 
     int fileSize = 245000; // fallback estimated size
 
-    if (_controller != null && _controller!.value.isInitialized && !_config.isSimulated) {
+    if (_controller != null &&
+        _controller!.value.isInitialized &&
+        !_config.isSimulated) {
       try {
         final xFile = await _controller!.takePicture();
         await xFile.saveTo(filePath);

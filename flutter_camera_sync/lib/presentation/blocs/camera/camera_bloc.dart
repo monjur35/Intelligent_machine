@@ -46,6 +46,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     if (_isInitializing) return;
     _isInitializing = true;
     try {
+      emit(state.copyWith(config: state.config.copyWith(isReady: false)));
       await cameraRepository.initializeCamera();
       final batch = state.activeBatch ?? await syncRepository.createNewBatch();
       emit(
@@ -130,6 +131,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     ReleaseCameraEvent event,
     Emitter<CameraState> emit,
   ) async {
+    emit(state.copyWith(config: state.config.copyWith(isReady: false)));
     await cameraRepository.releaseCamera();
   }
 

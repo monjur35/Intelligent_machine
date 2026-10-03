@@ -131,7 +131,7 @@ fun AttendanceActionCard(
                 } else {
                     Text(
                         text = when {
-                            isAttendanceMarked -> if (punchInTime != null) "Attendance Recorded at $punchInTime" else "Attendance Recorded"
+                            isAttendanceMarked -> "Attendance Recorded"
                             isPermissionRequired -> "Grant Location Permission"
                             isWithinGeofence -> "Mark Attendance"
                             else -> "Mark Attendance"
