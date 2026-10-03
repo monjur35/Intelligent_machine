@@ -24,7 +24,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -39,6 +43,7 @@ fun AttendanceActionCard(
     isLoading: Boolean,
     onMarkAttendanceClick: () -> Unit,
     modifier: Modifier = Modifier,
+    attendanceTimestamp: Long? = null,
     hasLocationPermission: Boolean = true,
     isLiveGps: Boolean = true,
     availabilityWindow: String = "AVAILABLE 09:00 AM - 10:30 AM"
@@ -56,6 +61,11 @@ fun AttendanceActionCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val isPermissionRequired = isLiveGps && !hasLocationPermission
+            val punchInTime = remember(attendanceTimestamp) {
+                if (attendanceTimestamp != null && attendanceTimestamp > 0L) {
+                    SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(attendanceTimestamp))
+                } else null
+            }
 
             // Lock / Success Icon in circular background
             val iconBgColor by animateColorAsState(
@@ -121,7 +131,7 @@ fun AttendanceActionCard(
                 } else {
                     Text(
                         text = when {
-                            isAttendanceMarked -> "Attendance Recorded"
+                            isAttendanceMarked -> if (punchInTime != null) "Attendance Recorded at $punchInTime" else "Attendance Recorded"
                             isPermissionRequired -> "Grant Location Permission"
                             isWithinGeofence -> "Mark Attendance"
                             else -> "Mark Attendance"
@@ -136,7 +146,11 @@ fun AttendanceActionCard(
 
             // Availability footer
             Text(
-                text = if (isPermissionRequired) "LOCATION PERMISSION NEEDED" else availabilityWindow,
+                text = when {
+                    isPermissionRequired -> "LOCATION PERMISSION NEEDED"
+                    isAttendanceMarked && punchInTime != null -> "PUNCH IN RECORDED AT $punchInTime"
+                    else -> availabilityWindow
+                },
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = if (isPermissionRequired) Color(0xFFD97706) else Color(0xFF94A3B8),

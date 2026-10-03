@@ -170,6 +170,7 @@ fun AttendanceScreen(
             AttendanceActionCard(
                 isWithinGeofence = uiState.isWithinGeofence,
                 isAttendanceMarked = uiState.isAttendanceMarked,
+                attendanceTimestamp = uiState.attendanceTimestamp,
                 isLoading = uiState.isLoading,
                 hasLocationPermission = uiState.hasLocationPermission,
                 isLiveGps = uiState.simulationMode == SimulationMode.REAL_GPS,
