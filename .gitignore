@@ -16,7 +16,7 @@ app/src/*.jks
 app/src/*.keystore
 
 # Build and release artifacts
-app/release/
+**/release/
 app/build/
 **/build/
 .dart_tool/

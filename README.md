@@ -9,10 +9,10 @@ This monorepo delivers two enterprise-grade mobile systems developed for the Sen
 ## Deliverables & Release APKs
 
 Pre-built binaries are available for direct review:
-- **Task 1 (Native Android)**: [Download GeoPulse Release APK](https://github.com/monjur35/Intelligent_machine/releases/latest/download/app-release.apk)
-  *(Local build path: `app/build/outputs/apk/debug/app-debug.apk` or `app/build/outputs/apk/release/app-release.apk`)*
+- **Task 1 (Native Android)**: [Download GeoPulse Release APK](https://github.com/monjur35/Intelligent_machine/releases/latest/download/geopulse-release.apk)
+  *(Local build path: `app/build/outputs/apk/release/geopulse-release.apk`)*
 - **Task 2 (Flutter App)**: [Download AeroSync Release APK](https://github.com/monjur35/Intelligent_machine/releases/latest/download/aerosync-release.apk)
-  *(Local build path: `flutter_camera_sync/build/app/outputs/flutter-apk/app-release.apk`)*
+  *(Local build path: `flutter_camera_sync/build/app/outputs/flutter-apk/aerosync-release.apk`)*
 
 ---
 
