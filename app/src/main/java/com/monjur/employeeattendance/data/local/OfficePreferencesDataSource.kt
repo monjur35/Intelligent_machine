@@ -17,7 +17,9 @@ import java.io.IOException
 
 val Context.attendanceDataStore: DataStore<Preferences> by preferencesDataStore(name = "attendance_prefs")
 
-class OfficePreferencesDataSource(private val context: Context) {
+class OfficePreferencesDataSource(context: Context) {
+
+    private val appContext = context.applicationContext
 
     private object PreferencesKeys {
         val KEY_OFFICE_LAT = doublePreferencesKey("office_lat")
@@ -26,7 +28,7 @@ class OfficePreferencesDataSource(private val context: Context) {
         val KEY_OFFICE_TIMESTAMP = longPreferencesKey("office_timestamp")
     }
 
-    val officeLocationFlow: Flow<OfficeLocation?> = context.attendanceDataStore.data
+    val officeLocationFlow: Flow<OfficeLocation?> = appContext.attendanceDataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -53,7 +55,7 @@ class OfficePreferencesDataSource(private val context: Context) {
         }
 
     suspend fun saveOfficeLocation(officeLocation: OfficeLocation) {
-        context.attendanceDataStore.edit { preferences ->
+        appContext.attendanceDataStore.edit { preferences ->
             preferences[PreferencesKeys.KEY_OFFICE_LAT] = officeLocation.latitude
             preferences[PreferencesKeys.KEY_OFFICE_LNG] = officeLocation.longitude
             preferences[PreferencesKeys.KEY_OFFICE_LABEL] = officeLocation.label

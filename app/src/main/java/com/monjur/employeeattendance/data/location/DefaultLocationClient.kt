@@ -29,26 +29,22 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 class DefaultLocationClient(
-    private val context: Context,
-    private val client: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+    context: Context,
+    private val client: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context.applicationContext)
 ) : LocationClient {
 
+    private val appContext: Context = context.applicationContext
+
     private fun hasLocationPermission(): Boolean {
-        val fineLocationGranted = ContextCompat.checkSelfPermission(
-            context,
+        // High-accuracy geofencing strictly requires fine GPS location
+        return ContextCompat.checkSelfPermission(
+            appContext,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-
-        val coarseLocationGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        return fineLocationGranted || coarseLocationGranted
     }
 
     override fun isGpsEnabled(): Boolean {
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
+        val locationManager = appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
         return LocationManagerCompat.isLocationEnabled(locationManager) ||
                 locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
                 locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
@@ -68,14 +64,14 @@ class DefaultLocationClient(
 
         val filter = IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION)
         try {
-            context.registerReceiver(receiver, filter)
+            appContext.registerReceiver(receiver, filter)
         } catch (e: Exception) {
             // Ignore register errors if any
         }
 
         awaitClose {
             try {
-                context.unregisterReceiver(receiver)
+                appContext.unregisterReceiver(receiver)
             } catch (e: Exception) {
                 // Ignore unregister errors
             }
@@ -98,14 +94,19 @@ class DefaultLocationClient(
             override fun onLocationResult(result: LocationResult) {
                 super.onLocationResult(result)
                 result.lastLocation?.let { location ->
-                    trySend(
-                        LocationCoordinates(
-                            latitude = location.latitude,
-                            longitude = location.longitude,
-                            accuracyMeters = location.accuracy,
-                            timestamp = location.time
+                    // Reject fixes older than 15s or with unacceptable accuracy (> 30m)
+                    val isStale = (System.currentTimeMillis() - location.time) > 15_000
+                    val isAccurate = !location.hasAccuracy() || location.accuracy <= 30.0f
+                    if (!isStale && isAccurate) {
+                        trySend(
+                            LocationCoordinates(
+                                latitude = location.latitude,
+                                longitude = location.longitude,
+                                accuracyMeters = location.accuracy,
+                                timestamp = location.time
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -191,12 +192,16 @@ class DefaultLocationClient(
         }
 
         if (lastLoc != null) {
-            return LocationCoordinates(
-                latitude = lastLoc.latitude,
-                longitude = lastLoc.longitude,
-                accuracyMeters = lastLoc.accuracy,
-                timestamp = lastLoc.time
-            )
+            val isFresh = (System.currentTimeMillis() - lastLoc.time) <= 15_000
+            val isAccurate = !lastLoc.hasAccuracy() || lastLoc.accuracy <= 25.0f
+            if (isFresh && isAccurate) {
+                return LocationCoordinates(
+                    latitude = lastLoc.latitude,
+                    longitude = lastLoc.longitude,
+                    accuracyMeters = lastLoc.accuracy,
+                    timestamp = lastLoc.time
+                )
+            }
         }
 
         // 3. Third attempt: Active location request with high accuracy (especially useful if GPS was just enabled)

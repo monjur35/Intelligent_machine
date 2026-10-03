@@ -12,7 +12,8 @@ class MarkAttendanceUseCase(
         currentLat: Double,
         currentLng: Double,
         officeLat: Double,
-        officeLng: Double
+        officeLng: Double,
+        isSimulated: Boolean = false
     ): Result<AttendanceRecord> {
         val distance = calculateDistanceUseCase(
             currentLat = currentLat,
@@ -28,7 +29,8 @@ class MarkAttendanceUseCase(
                 latitude = currentLat,
                 longitude = currentLng,
                 distanceMeters = distance,
-                isSuccess = true
+                isSuccess = true,
+                isSimulated = isSimulated
             )
             attendanceRepository.recordAttendance(record)
             Result.success(record)

@@ -7,6 +7,7 @@ import com.monjur.employeeattendance.domain.model.LocationCoordinates
 import com.monjur.employeeattendance.domain.model.OfficeLocation
 import com.monjur.employeeattendance.domain.model.SimulationMode
 import com.monjur.employeeattendance.domain.usecase.CalculateDistanceUseCase
+import com.monjur.employeeattendance.domain.usecase.GetAttendanceHistoryUseCase
 import com.monjur.employeeattendance.domain.usecase.GetOfficeLocationUseCase
 import com.monjur.employeeattendance.domain.usecase.MarkAttendanceUseCase
 import com.monjur.employeeattendance.domain.usecase.ObserveCurrentLocationUseCase
@@ -29,7 +30,8 @@ class AttendanceViewModel @Inject constructor(
     private val getOfficeLocationUseCase: GetOfficeLocationUseCase,
     private val observeCurrentLocationUseCase: ObserveCurrentLocationUseCase,
     private val calculateDistanceUseCase: CalculateDistanceUseCase,
-    private val markAttendanceUseCase: MarkAttendanceUseCase
+    private val markAttendanceUseCase: MarkAttendanceUseCase,
+    private val getAttendanceHistoryUseCase: GetAttendanceHistoryUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AttendanceUiState())
@@ -41,6 +43,7 @@ class AttendanceViewModel @Inject constructor(
     init {
         observeSavedOfficeLocation()
         observeGpsStatus()
+        observeAttendanceHistory()
     }
 
     private fun observeSavedOfficeLocation() {
@@ -79,6 +82,30 @@ class AttendanceViewModel @Inject constructor(
                     stopObservingLocation()
                     _uiState.update { it.copy(currentLocation = null) }
                     recalculateDistance()
+                }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    private fun isToday(timestamp: Long): Boolean {
+        val recordCal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+        val nowCal = java.util.Calendar.getInstance()
+        return recordCal.get(java.util.Calendar.ERA) == nowCal.get(java.util.Calendar.ERA) &&
+                recordCal.get(java.util.Calendar.YEAR) == nowCal.get(java.util.Calendar.YEAR) &&
+                recordCal.get(java.util.Calendar.DAY_OF_YEAR) == nowCal.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+
+    private fun observeAttendanceHistory() {
+        getAttendanceHistoryUseCase()
+            .onEach { records ->
+                val todaySuccess = records.firstOrNull { it.isSuccess && isToday(it.timestamp) }
+                if (todaySuccess != null) {
+                    _uiState.update {
+                        it.copy(
+                            isAttendanceMarked = true,
+                            attendanceTimestamp = todaySuccess.timestamp
+                        )
+                    }
                 }
             }
             .launchIn(viewModelScope)
@@ -152,7 +179,7 @@ class AttendanceViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    private fun stopObservingLocation() {
+    fun stopObservingLocation() {
         locationUpdatesJob?.cancel()
         locationUpdatesJob = null
     }
@@ -220,6 +247,11 @@ class AttendanceViewModel @Inject constructor(
             val state = _uiState.value
             val office = state.officeLocation
 
+            if (state.isAttendanceMarked) {
+                _uiState.update { it.copy(errorMessage = "Attendance has already been marked for today.") }
+                return@launch
+            }
+
             if (office == null) {
                 _uiState.update { it.copy(errorMessage = "Please set your office location first.") }
                 return@launch
@@ -247,11 +279,13 @@ class AttendanceViewModel @Inject constructor(
 
             _uiState.update { it.copy(isLoading = true) }
 
+            val isSimulated = state.simulationMode != SimulationMode.REAL_GPS
             val result = markAttendanceUseCase(
                 currentLat = currentLat,
                 currentLng = currentLng,
                 officeLat = office.latitude,
-                officeLng = office.longitude
+                officeLng = office.longitude,
+                isSimulated = isSimulated
             )
 
             result.fold(
@@ -343,5 +377,12 @@ class AttendanceViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopObservingLocation()
+        gpsStatusJob?.cancel()
+        gpsStatusJob = null
     }
 }

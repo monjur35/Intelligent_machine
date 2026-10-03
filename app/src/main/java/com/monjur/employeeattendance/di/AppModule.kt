@@ -106,4 +106,12 @@ object AppModule {
     ): MarkAttendanceUseCase {
         return MarkAttendanceUseCase(attendanceRepository, calculateDistanceUseCase)
     }
+
+    @Provides
+    @Singleton
+    fun provideGetAttendanceHistoryUseCase(
+        attendanceRepository: AttendanceRepository
+    ): com.monjur.employeeattendance.domain.usecase.GetAttendanceHistoryUseCase {
+        return com.monjur.employeeattendance.domain.usecase.GetAttendanceHistoryUseCase(attendanceRepository)
+    }
 }

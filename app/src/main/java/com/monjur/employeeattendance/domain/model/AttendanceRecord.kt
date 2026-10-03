@@ -6,5 +6,6 @@ data class AttendanceRecord(
     val latitude: Double,
     val longitude: Double,
     val distanceMeters: Float,
-    val isSuccess: Boolean
+    val isSuccess: Boolean,
+    val isSimulated: Boolean = false
 )

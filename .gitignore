@@ -8,3 +8,17 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Signing keys and credentials
+*.jks
+*.keystore
+app/src/*.jks
+app/src/*.keystore
+
+# Build and release artifacts
+app/release/
+app/build/
+**/build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies

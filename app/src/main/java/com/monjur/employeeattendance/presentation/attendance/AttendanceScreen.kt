@@ -78,15 +78,22 @@ fun AttendanceScreen(
     // Lifecycle-aware permission check & location observation
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                val hasPermission = checkLocationPermission(context)
-                viewModel.onPermissionResult(hasPermission)
-                viewModel.checkGpsStatus()
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    val hasPermission = checkLocationPermission(context)
+                    viewModel.onPermissionResult(hasPermission)
+                    viewModel.checkGpsStatus()
+                }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    viewModel.stopObservingLocation()
+                }
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopObservingLocation()
         }
     }
 
@@ -177,15 +184,16 @@ fun AttendanceScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Testing / Evaluation Simulation Mode Bar
-            SimulationControlCard(
-                currentMode = uiState.simulationMode,
-                onModeSelect = { mode ->
-                    viewModel.onSimulationModeChanged(mode)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
+            // Testing / Evaluation Simulation Mode Bar (Gated to DEBUG builds to protect production geofence)
+            if (com.monjur.employeeattendance.BuildConfig.DEBUG) {
+                SimulationControlCard(
+                    currentMode = uiState.simulationMode,
+                    onModeSelect = { mode ->
+                        viewModel.onSimulationModeChanged(mode)
+                    }
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+            }
         }
     }
 

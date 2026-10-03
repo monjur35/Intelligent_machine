@@ -7,14 +7,16 @@ import com.monjur.employeeattendance.domain.model.AttendanceRecord
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class AttendanceLocalDataSource(private val context: Context) {
+class AttendanceLocalDataSource(context: Context) {
+
+    private val appContext = context.applicationContext
 
     private object PreferencesKeys {
         val KEY_ATTENDANCE_LOGS = stringPreferencesKey("attendance_logs_csv")
     }
 
-    // Stores CSV-like records: id|timestamp|latitude|longitude|distanceMeters|isSuccess
-    val attendanceRecordsFlow: Flow<List<AttendanceRecord>> = context.attendanceDataStore.data.map { preferences ->
+    // Stores CSV-like records: id|timestamp|latitude|longitude|distanceMeters|isSuccess|isSimulated
+    val attendanceRecordsFlow: Flow<List<AttendanceRecord>> = appContext.attendanceDataStore.data.map { preferences ->
         val raw = preferences[PreferencesKeys.KEY_ATTENDANCE_LOGS] ?: ""
         if (raw.isBlank()) {
             emptyList()
@@ -28,7 +30,8 @@ class AttendanceLocalDataSource(private val context: Context) {
                         latitude = parts[2].toDoubleOrNull() ?: 0.0,
                         longitude = parts[3].toDoubleOrNull() ?: 0.0,
                         distanceMeters = parts[4].toFloatOrNull() ?: 0f,
-                        isSuccess = parts[5].toBooleanStrictOrNull() ?: false
+                        isSuccess = parts[5].toBooleanStrictOrNull() ?: false,
+                        isSimulated = if (parts.size >= 7) parts[6].toBooleanStrictOrNull() ?: false else false
                     )
                 } else null
             }
@@ -36,9 +39,9 @@ class AttendanceLocalDataSource(private val context: Context) {
     }
 
     suspend fun saveRecord(record: AttendanceRecord) {
-        context.attendanceDataStore.edit { preferences ->
+        appContext.attendanceDataStore.edit { preferences ->
             val existing = preferences[PreferencesKeys.KEY_ATTENDANCE_LOGS] ?: ""
-            val entry = "${record.id}|${record.timestamp}|${record.latitude}|${record.longitude}|${record.distanceMeters}|${record.isSuccess}"
+            val entry = "${record.id}|${record.timestamp}|${record.latitude}|${record.longitude}|${record.distanceMeters}|${record.isSuccess}|${record.isSimulated}"
             preferences[PreferencesKeys.KEY_ATTENDANCE_LOGS] = if (existing.isEmpty()) entry else "$entry;$existing"
         }
     }
