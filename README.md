@@ -128,6 +128,9 @@ cd Intelligent_machine
 # Build debug APK
 ./gradlew assembleDebug
 
+# Build release APK with R8 code shrinking, ProGuard & obfuscation
+./gradlew :app:assembleRelease
+
 # Install and launch on connected emulator or device
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.monjur.employeeattendance/.MainActivity
@@ -147,8 +150,8 @@ flutter analyze
 # Run unit and widget tests
 flutter test
 
-# Build release APK
-flutter build apk --release
+# Build production release APK with R8, ProGuard and Dart AOT code obfuscation
+flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols
 
 # Run on connected device or emulator
 flutter run
@@ -182,7 +185,9 @@ EmployeeAttendance/
 │   │   ├── domain/                      # Models, UseCases, Repository Contracts
 │   │   ├── data/                        # Preferences DataStore, FusedLocation Client
 │   │   └── presentation/                # Jetpack Compose UI, ViewModels, StateFlow
-│   └── src/test/                        # Unit tests (UseCases & AttendanceViewModelTest)
+│   ├── src/test/                        # Unit tests (UseCases & AttendanceViewModelTest)
+│   ├── proguard-rules.pro               # Production ProGuard & R8 Optimization Rules
+│   └── src/main/res/xml/                # Network Security Config & Data Extraction Rules
 │
 ├── flutter_camera_sync/                 # Task 2: Flutter App (AeroSync)
 │   ├── lib/
@@ -192,7 +197,9 @@ EmployeeAttendance/
 │   │   ├── presentation/                # BLoC State (CameraBloc, SyncBloc), Viewfinder, Batch Cards
 │   │   ├── services/                    # WorkManager Headless Background Worker
 │   │   └── main.dart                    # App Entry Point & Dependency Injection
-│   └── test/                            # Flutter Unit & Widget Tests
+│   ├── android/app/proguard-rules.pro   # Flutter Engine & Plugin ProGuard Rules
+│   ├── test/                            # Flutter Unit & Widget Tests
+│   └── README.md                        # AeroSync Flutter Architecture Documentation
 │
 ├── docs/                                # Technical Specifications & Screenshots
 │   ├── PROJECT_PLAN.md                  # Master Engineering Roadmap
@@ -205,7 +212,36 @@ EmployeeAttendance/
 
 ---
 
-## 6. Known Limitations & Production Hardening Roadmap
+## 6. Security Architecture & Production Hardening
+
+Both applications are configured with defense-in-depth security controls:
+
+### 1. R8 Code Shrinking & Name Obfuscation
+- Configured `isMinifyEnabled = true` in both Native Android and Flutter Android release targets.
+- Strips unused classes, fields, and methods from application dex files.
+- Renames classes, methods, and variables to unreadable single-character identifiers, making reverse engineering and decompilation via Jadx/APKTool ineffective.
+
+### 2. Resource Shrinking
+- Configured `isShrinkResources = true` in release builds to automatically remove unused assets, drawables, and XML layouts detected after R8 tree shaking.
+
+### 3. Dart AOT Binary Obfuscation
+- Flutter release builds are packaged with `--obfuscate --split-debug-info=build/app/outputs/symbols`.
+- Strips Dart function names, symbol tables, and class metadata from the compiled Flutter ELF/snapshot binaries (`libapp.so`), storing debug symbols in isolated offline mapping files for crash de-obfuscation.
+
+### 4. Custom ProGuard Keep Rules
+- **Native Android (`app/proguard-rules.pro`)**: Keeps reflection-sensitive Dagger Hilt components, Jetpack Compose runtime/recomposers, DataStore Preferences serialization, Kotlin Coroutine dispatchers, and immutable domain models.
+- **Flutter (`flutter_camera_sync/android/app/proguard-rules.pro`)**: Protects Flutter Engine JNI wrappers, WorkManager headless background workers (`Worker`, `ListenableWorker`), CameraX internals, and SQLite (`sqflite`).
+
+### 5. Network Security & Cleartext Traffic Prohibition
+- Configured `network_security_config.xml` with `<base-config cleartextTrafficPermitted="false">` and system CA trust anchors.
+- Added `android:usesCleartextTraffic="false"` to both application manifests to block unencrypted HTTP transmission of telemetry, attendance records, or batch payloads.
+
+### 6. Local Backup & Data Extraction Prevention
+- Added `android:allowBackup="false"` to both Android manifests, preventing local database extraction of offline SQLite photos or DataStore logs through ADB backup (`adb backup`).
+
+---
+
+## 7. Known Limitations & Production Roadmap
 
 While this implementation fulfills all assessment criteria and handles edge cases, production deployment would incorporate:
 1. **Room Database for Android History**: Transitioning from delimited DataStore preferences to an Android Room DB with type-safe queries and SQLite migrations.
