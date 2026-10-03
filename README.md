@@ -24,29 +24,31 @@ Both applications strictly adhere to **Clean Architecture with MVVM (Model-View-
 
 ```mermaid
 graph TD
-    subgraph Presentation Layer
-        UI[Jetpack Compose / Flutter Widgets]
-        VM[ViewModel StateFlow / BLoC]
+    subgraph Presentation["Presentation Layer"]
+        UI["Jetpack Compose / Flutter Widgets"]
+        VM["ViewModel (StateFlow) / BLoC"]
         UI --> VM
     end
 
-    subgraph Domain Layer
-        UC[Use Cases / Interactors]
-        REPO_INT[Repository Interfaces]
-        ENT[Pure Domain Entities]
-        VM --> UC
+    subgraph Domain["Domain Layer (Core Business Rules)"]
+        UC["Use Cases / Interactors"]
+        REPO_INT["Repository Interfaces"]
+        ENT["Pure Domain Entities"]
         UC --> REPO_INT
         UC --> ENT
     end
 
-    subgraph Data Layer
-        REPO_IMPL[Repository Implementations]
-        LOCAL_DS[Preferences DataStore / SQLite sqflite]
-        REMOTE_HW[FusedLocationProvider / CameraX / WorkManager / MockApi]
+    subgraph Data["Data Layer (Infrastructure & I/O)"]
+        REPO_IMPL["Repository Implementations"]
+        LOCAL_DS["Preferences DataStore / SQLite (sqflite)"]
+        REMOTE_HW["FusedLocationProvider / CameraX / WorkManager / MockApi"]
         REPO_IMPL --> LOCAL_DS
         REPO_IMPL --> REMOTE_HW
-        REPO_INT -.-> REPO_IMPL
     end
+
+    %% Cross-layer boundaries (Inward Dependencies)
+    VM --> UC
+    REPO_IMPL -.->|implements| REPO_INT
 ```
 
 ### Task 1: GeoPulse (Native Android)
@@ -96,20 +98,18 @@ graph TD
 
 | # | Prompt Category | Real Prompt Excerpt | Engineer Correction / Manual Refinement |
 |---|---|---|---|
-| 1 | **Navigation Refactoring** | *"Refactor Flutter main.dart: use a dedicated class or system to manage routes and navigation with centralized routes and clean architecture."* | Created `AppRouter` with `GlobalKey<NavigatorState>`, dynamic route generator, unknown route fallback, and `RouteObserver` for lifecycle tracking. |
-| 2 | **Camera Permission Race Guard** | *"Scenario: User enters camera screen for the first time, permission is not yet granted so static UI shows. User accepts prompt; camera should start immediately. Currently it requires navigating away and back. Fix this."* | Diagnosed race condition where permission request completed after controller initialization check. Introduced `_isRequestingPermission` guard and immediate controller start upon permission grant. |
-| 3 | **WorkManager Headless Audit** | *"Check the WorkManager implementation against requirements: ensure offline queuing, auto-retry on connection restored, and headless execution."* | Added `WidgetsFlutterBinding.ensureInitialized()` in `callbackDispatcher`, configured exponential backoff, and injected SQLite-backed sync repo. |
-| 4 | **Cross-Isolate Mutex & Outage** | *"Background worker ignores the simulated outage because forceFailure lives in UI memory. Batches can also collide if both isolates sync simultaneously. Fix both."* | Architected an `app_config` SQLite table providing cross-isolate persistence for the outage flag and an atomic lease-based mutex lock (`acquireSyncLock`). |
-| 5 | **Hardware Lifecycle Management** | *"Camera is never released on inactive or route push, causing ImageReader_JNI spam and battery drain. Implement proper lifecycle release and resume."* | Integrated `RouteAware` with `AppRouter.routeObserver` and `WidgetsBindingObserver`, dispatching `ReleaseCameraEvent` on push/inactive and reinitializing on pop/resume. |
-| 6 | **Geofence Trust & Duplicate Guard** | *"Reject coarse-only location on Android 12+, discard stale fixes, restore attendance state on launch, and block duplicate same-day check-ins."* | Restricted `hasLocationPermission` to `ACCESS_FINE_LOCATION`, added 15s freshness filter and 25m accuracy filter, and added `observeAttendanceHistory` in `AttendanceViewModel`. |
-| 7 | **Memory & Hardware Leak Audit** | *"Check for memory leaks in both native android and flutter app. If there are any possible memory leaks, prevent it."* | Audited both codebases: (1) Replaced direct Android Context references in `DefaultLocationClient`, `OfficePreferencesDataSource`, and `AttendanceLocalDataSource` with `applicationContext` to eliminate Activity leaks; (2) Added `stopObservingLocation()` on Compose `ON_PAUSE`/`ON_STOP` and `ViewModel.onCleared()` to halt GPS hardware polling in the background; (3) Added `ReleaseCameraEvent` on `CameraPreviewScreen.dispose()`; (4) Replaced unmanaged focus `Future.delayed` timer churn with a cancellable `Timer` in `CameraBloc`; (5) Implemented `dispose()` in `SyncRepositoryImpl` to cleanly close broadcast stream controllers. |
+| 1 | **Cross-Isolate Concurrency & Outage** | *"Resolve the isolate boundary gap where background sync operates independently of UI memory state: persist the network outage simulation across isolates via SQLite and introduce a database-backed distributed mutex to prevent concurrent sync collisions."* | Architected an `app_config` SQLite table providing cross-isolate persistence for the outage flag and an atomic lease-based mutex lock (`acquireSyncLock`). |
+| 2 | **Geofence Trust & Attendance Idempotency** | *"Harden geofence validation and attendance integrity on Android: enforce ACCESS_FINE_LOCATION on Android 12+, discard stale or inaccurate GPS fixes exceeding threshold tolerances, and maintain persistent same-day check-in idempotency across cold restarts."* | Restricted `hasLocationPermission` to `ACCESS_FINE_LOCATION`, added 15s freshness filter and 25m accuracy filter, and added `observeAttendanceHistory` in `AttendanceViewModel`. |
+| 3 | **Headless Background Sync Resilience** | *"Audit the WorkManager integration against background execution requirements: verify headless isolate bootstrapping with WidgetsFlutterBinding, enforce offline SQLite queuing with exponential backoff, and guarantee automatic resumption upon network connectivity changes."* | Added `WidgetsFlutterBinding.ensureInitialized()` in `callbackDispatcher`, configured exponential backoff, and injected SQLite-backed sync repo. |
+| 4 | **Hardware Sensor Lifecycle Management** | *"Enforce strict camera sensor lifecycle management: hook into RouteAware and WidgetsBindingObserver to safely tear down the hardware controller on backgrounding or route transitions, avoiding native ImageReader buffer exhaustion and battery drain."* | Integrated `RouteAware` with `AppRouter.routeObserver` and `WidgetsBindingObserver`, dispatching `ReleaseCameraEvent` on push/paused and reinitializing on pop/resume. |
+| 5 | **Full-Stack Memory & Resource Leak Audit** | *"Perform a comprehensive memory and resource leak audit across both Android (Kotlin) and Flutter (Dart) codebases: identify Context retention in long-lived singletons, unreleased GPS/camera hardware listeners during lifecycle transitions, and unmanaged timers or stream subscriptions."* | Audited both codebases: (1) Replaced direct Android Context references in `DefaultLocationClient`, `OfficePreferencesDataSource`, and `AttendanceLocalDataSource` with `applicationContext` to eliminate Activity leaks; (2) Added `stopObservingLocation()` on Compose `ON_PAUSE`/`ON_STOP` and `ViewModel.onCleared()` to halt GPS hardware polling in the background; (3) Added `ReleaseCameraEvent` on `CameraPreviewScreen.dispose()`; (4) Replaced unmanaged focus `Future.delayed` timer churn with a cancellable `Timer` in `CameraBloc`; (5) Implemented `dispose()` in `SyncRepositoryImpl` to cleanly close broadcast stream controllers. |
 
 ---
 
 ## 3. How to Run & Verify
 
 ### Prerequisites
-- Android Studio Ladybug / Koala or CLI SDK tools
+- Android Studio Ladybug / Koala or up or CLI SDK tools
 - OpenJDK 17 or 21
 - Flutter SDK 3.35.x (`Dart 3.9+`)
 - Connected Android Device or Emulator (API 30+)
