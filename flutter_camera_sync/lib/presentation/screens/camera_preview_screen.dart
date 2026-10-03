@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../core/navigation/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../domain/entities/camera_config_entity.dart';
 import '../blocs/camera/camera_bloc.dart';
@@ -12,7 +13,6 @@ import '../blocs/sync/sync_bloc.dart';
 import '../blocs/sync/sync_state.dart';
 import '../widgets/focus_indicator.dart';
 import '../widgets/zoom_control_bar.dart';
-import 'upload_manager_screen.dart';
 
 class CameraPreviewScreen extends StatefulWidget {
   const CameraPreviewScreen({super.key});
@@ -329,12 +329,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                                     ? AppTheme.cyanAccent
                                     : AppTheme.statusFailed,
                                 onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const UploadManagerScreen(),
-                                    ),
-                                  );
+                                  AppRouter.navigateToUploadManager(context);
                                 },
                               ),
                               if (pendingCount > 0)
@@ -594,12 +589,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                                 size: 48,
                                 iconSize: 22,
                                 onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const UploadManagerScreen(),
-                                    ),
-                                  );
+                                  AppRouter.navigateToUploadManager(context);
                                 },
                               ),
                               const SizedBox(height: 4),

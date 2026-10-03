@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'core/navigation/app_router.dart';
 import 'core/network/network_info.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/camera/camera_data_source.dart';
@@ -10,8 +11,6 @@ import 'data/repositories/camera_repository_impl.dart';
 import 'data/repositories/sync_repository_impl.dart';
 import 'presentation/blocs/camera/camera_bloc.dart';
 import 'presentation/blocs/sync/sync_bloc.dart';
-import 'presentation/screens/camera_preview_screen.dart';
-import 'presentation/screens/upload_manager_screen.dart';
 import 'services/background_sync_worker.dart';
 
 void main() async {
@@ -88,14 +87,12 @@ class AeroSyncApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'AeroSync Camera & Sync Engine',
+        title: 'AeroSync Camera',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
-        initialRoute: '/',
-        routes: {
-          '/': (context) => const CameraPreviewScreen(),
-          '/upload-manager': (context) => const UploadManagerScreen(),
-        },
+        navigatorKey: AppRouter.navigatorKey,
+        initialRoute: AppRoutes.initial,
+        onGenerateRoute: AppRouter.onGenerateRoute,
       ),
     );
   }
