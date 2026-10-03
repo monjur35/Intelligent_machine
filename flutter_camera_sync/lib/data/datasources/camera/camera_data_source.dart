@@ -24,6 +24,8 @@ class CameraDataSourceImpl implements CameraDataSource {
   final _configController = StreamController<CameraConfigEntity>.broadcast();
   CameraConfigEntity _config = const CameraConfigEntity();
 
+  bool _isInitializing = false;
+
   @override
   CameraController? get controller => _controller;
 
@@ -35,7 +37,24 @@ class CameraDataSourceImpl implements CameraDataSource {
 
   @override
   Future<void> initialize() async {
+    if (_isInitializing) return;
+
+    if (_controller != null &&
+        _controller!.value.isInitialized &&
+        _config.isReady &&
+        !_config.isSimulated) {
+      return;
+    }
+
+    _isInitializing = true;
     try {
+      if (_controller != null) {
+        try {
+          await _controller!.dispose();
+        } catch (_) {}
+        _controller = null;
+      }
+
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
         _fallbackToSimulatedCamera("No hardware cameras detected.");
@@ -48,7 +67,7 @@ class CameraDataSourceImpl implements CameraDataSource {
         orElse: () => cameras.first,
       );
 
-      _controller = CameraController(
+      final newController = CameraController(
         backCamera,
         ResolutionPreset.high,
         enableAudio: false,
@@ -57,7 +76,8 @@ class CameraDataSourceImpl implements CameraDataSource {
             : ImageFormatGroup.jpeg,
       );
 
-      await _controller!.initialize();
+      await newController.initialize();
+      _controller = newController;
 
       // Probe camera zoom capabilities
       double minZoom = 1.0;
@@ -81,10 +101,14 @@ class CameraDataSourceImpl implements CameraDataSource {
         maxZoom: maxZoom,
         availableRatios: ratios,
       ));
-    } on CameraException catch (_) {
+    } on CameraException catch (e) {
+      debugPrint("Camera hardware initialization failed: $e");
       _fallbackToSimulatedCamera("Camera hardware initialization failed.");
-    } catch (_) {
+    } catch (e) {
+      debugPrint("Camera system error: $e");
       _fallbackToSimulatedCamera("Camera system error.");
+    } finally {
+      _isInitializing = false;
     }
   }
 

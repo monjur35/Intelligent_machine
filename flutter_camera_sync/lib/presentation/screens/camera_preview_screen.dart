@@ -26,14 +26,15 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
   double _baseScale = 1.0;
   double _currentScale = 1.0;
   Offset? _tapFocusOffset;
-  bool _hasCameraPermission = true;
-  bool _isDialogOpen = false;
+  bool _hasCameraPermission = false;
+  bool _isInitialPermissionCheckDone = false;
+  bool _isRequestingPermission = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkCameraPermission();
+    _checkInitialPermission();
   }
 
   @override
@@ -44,49 +45,112 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkCameraPermission();
+    if (state == AppLifecycleState.resumed &&
+        !_hasCameraPermission &&
+        !_isRequestingPermission) {
+      _checkPermissionOnResume();
     }
   }
 
-  Future<void> _checkCameraPermission() async {
+  Future<void> _checkInitialPermission() async {
     final status = await Permission.camera.status;
-    final isGranted = status.isGranted;
-
     if (!mounted) return;
 
-    setState(() {
-      _hasCameraPermission = isGranted;
-    });
-
-    if (isGranted) {
-      if (_isDialogOpen && Navigator.of(context, rootNavigator: true).canPop()) {
-        Navigator.of(context, rootNavigator: true).pop();
-        _isDialogOpen = false;
-      }
-      context.read<CameraBloc>().add(InitializeCameraEvent());
+    if (status.isGranted) {
+      setState(() {
+        _hasCameraPermission = true;
+        _isInitialPermissionCheckDone = true;
+      });
+      _startCameraIfNeeded();
     } else {
-      _showPermissionDialog();
+      if (!status.isPermanentlyDenied) {
+        await _requestCameraPermission();
+      } else {
+        setState(() {
+          _hasCameraPermission = false;
+          _isInitialPermissionCheckDone = true;
+        });
+      }
     }
   }
 
-  void _showPermissionDialog() {
-    if (_isDialogOpen || !mounted) return;
-    _isDialogOpen = true;
+  Future<void> _checkPermissionOnResume() async {
+    final status = await Permission.camera.status;
+    if (!mounted) return;
+
+    if (status.isGranted) {
+      setState(() {
+        _hasCameraPermission = true;
+        _isInitialPermissionCheckDone = true;
+      });
+      _startCameraIfNeeded();
+    }
+  }
+
+  Future<void> _requestCameraPermission() async {
+    if (_isRequestingPermission) return;
+    _isRequestingPermission = true;
+
+    try {
+      final status = await Permission.camera.request();
+      if (!mounted) return;
+
+      if (status.isGranted) {
+        setState(() {
+          _hasCameraPermission = true;
+          _isInitialPermissionCheckDone = true;
+        });
+        _startCameraIfNeeded();
+      } else if (status.isPermanentlyDenied) {
+        setState(() {
+          _hasCameraPermission = false;
+          _isInitialPermissionCheckDone = true;
+        });
+        _showPermanentlyDeniedDialog();
+      } else {
+        setState(() {
+          _hasCameraPermission = false;
+          _isInitialPermissionCheckDone = true;
+        });
+      }
+    } finally {
+      _isRequestingPermission = false;
+    }
+  }
+
+  void _startCameraIfNeeded() {
+    if (!mounted) return;
+    final cameraBloc = context.read<CameraBloc>();
+    final config = cameraBloc.state.config;
+    final controller = cameraBloc.controller;
+
+    final isCameraActive = config.isReady &&
+        !config.isSimulated &&
+        controller != null &&
+        controller.value.isInitialized;
+
+    if (!isCameraActive) {
+      cameraBloc.add(InitializeCameraEvent());
+    }
+  }
+
+  void _showPermanentlyDeniedDialog() {
+    if (!mounted) return;
 
     showDialog<void>(
       context: context,
-      barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: AppTheme.cyanAccent.withValues(alpha: 0.3)),
+            side: BorderSide(
+              color: AppTheme.cyanAccent.withValues(alpha: 0.3),
+            ),
           ),
           title: const Row(
             children: [
-              Icon(Icons.videocam_off_rounded, color: Colors.amberAccent, size: 26),
+              Icon(Icons.settings_outlined, color: Colors.amberAccent, size: 26),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -101,7 +165,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
             ],
           ),
           content: const Text(
-            'Camera access is required to capture employee attendance photos. All camera actions are disabled until permission is granted.',
+            'Camera access is permanently disabled for this app. Please enable camera permission in App Settings to capture attendance photos.',
             style: TextStyle(
               color: Color(0xFF94A3B8),
               fontSize: 13,
@@ -110,10 +174,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                _isDialogOpen = false;
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text(
                 'Cancel',
                 style: TextStyle(color: Colors.white60),
@@ -128,35 +189,20 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-              icon: const Icon(Icons.check_circle_outline, size: 18),
+              icon: const Icon(Icons.settings, size: 18),
               label: const Text(
-                'Give Permission',
+                'Open Settings',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              onPressed: () async {
-                final status = await Permission.camera.request();
-                if (status.isGranted) {
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
-                    _isDialogOpen = false;
-                  }
-                  if (mounted) {
-                    setState(() {
-                      _hasCameraPermission = true;
-                    });
-                    context.read<CameraBloc>().add(InitializeCameraEvent());
-                  }
-                } else if (status.isPermanentlyDenied) {
-                  await openAppSettings();
-                }
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                openAppSettings();
               },
             ),
           ],
         );
       },
-    ).then((_) {
-      _isDialogOpen = false;
-    });
+    );
   }
 
   void _onScaleStart(ScaleStartDetails details) {
@@ -219,6 +265,10 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                 // 1. Camera Viewfinder (Hardware Camera, Simulated Viewfinder, or Permission Denied UI)
                 LayoutBuilder(
                   builder: (context, constraints) {
+                    if (!_isInitialPermissionCheckDone) {
+                      return _buildLoadingViewfinder();
+                    }
+
                     if (!_hasCameraPermission) {
                       return _buildPermissionDeniedViewfinder();
                     }
@@ -738,7 +788,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                 'Give Permission',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
-              onPressed: _showPermissionDialog,
+              onPressed: _requestCameraPermission,
             ),
           ],
         ),

@@ -13,10 +13,8 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
 
   CameraController? get controller => cameraRepository.controller;
 
-  CameraBloc({
-    required this.cameraRepository,
-    required this.syncRepository,
-  }) : super(const CameraState()) {
+  CameraBloc({required this.cameraRepository, required this.syncRepository})
+    : super(const CameraState()) {
     on<InitializeCameraEvent>(_onInitialize);
     on<ChangeZoomEvent>(_onChangeZoom);
     on<SetZoomRatioEvent>(_onSetZoomRatio);
@@ -33,16 +31,26 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     });
   }
 
+  bool _isInitializing = false;
+
   Future<void> _onInitialize(
     InitializeCameraEvent event,
     Emitter<CameraState> emit,
   ) async {
-    await cameraRepository.initializeCamera();
-    final batch = await syncRepository.createNewBatch();
-    emit(state.copyWith(
-      config: cameraRepository.currentConfig,
-      activeBatch: batch,
-    ));
+    if (_isInitializing) return;
+    _isInitializing = true;
+    try {
+      await cameraRepository.initializeCamera();
+      final batch = state.activeBatch ?? await syncRepository.createNewBatch();
+      emit(
+        state.copyWith(
+          config: cameraRepository.currentConfig,
+          activeBatch: batch,
+        ),
+      );
+    } finally {
+      _isInitializing = false;
+    }
   }
 
   Future<void> _onChangeZoom(
@@ -96,15 +104,9 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
         images: [...state.activeBatch!.images, image],
       );
 
-      emit(state.copyWith(
-        isCapturing: false,
-        activeBatch: updatedBatch,
-      ));
+      emit(state.copyWith(isCapturing: false, activeBatch: updatedBatch));
     } catch (e) {
-      emit(state.copyWith(
-        isCapturing: false,
-        message: 'Capture failed: $e',
-      ));
+      emit(state.copyWith(isCapturing: false, message: 'Capture failed: $e'));
     }
   }
 
