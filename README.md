@@ -240,10 +240,3 @@ Both applications are configured with defense-in-depth security controls:
 - Added `android:allowBackup="false"` to both Android manifests, preventing local database extraction of offline SQLite photos or DataStore logs through ADB backup (`adb backup`).
 
 ---
-
-## 7. Known Limitations & Production Roadmap
-
-While this implementation fulfills all assessment criteria and handles edge cases, production deployment would incorporate:
-1. **Room Database for Android History**: Transitioning from delimited DataStore preferences to an Android Room DB with type-safe queries and SQLite migrations.
-2. **Camera2 Multi-Camera Physical Lenses**: Leveraging OEM vendor extensions for physical ultra-wide switching on devices where CameraX aggregates lenses behind a single logical camera.
-3. **Network Reachability Probe**: Supplementing `connectivity_plus` with an active DNS/HTTP reachability check to detect captive portals before triggering queue uploads.
