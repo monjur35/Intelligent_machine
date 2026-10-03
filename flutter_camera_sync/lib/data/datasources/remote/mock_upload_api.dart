@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import '../../models/batch_model.dart';
 
+import '../local/database_helper.dart';
+
 abstract class RemoteSyncApi {
   Future<bool> uploadBatch(BatchModel batch);
   void setForceFailure(bool force);
@@ -9,7 +11,11 @@ abstract class RemoteSyncApi {
 }
 
 class MockUploadApiClient implements RemoteSyncApi {
+  final DatabaseHelper? dbHelper;
   bool _forceFailure = false;
+
+  MockUploadApiClient({DatabaseHelper? dbHelper})
+      : dbHelper = dbHelper ?? DatabaseHelper.instance;
 
   @override
   bool get forceFailure => _forceFailure;
@@ -17,10 +23,15 @@ class MockUploadApiClient implements RemoteSyncApi {
   @override
   void setForceFailure(bool force) {
     _forceFailure = force;
+    dbHelper?.setConfig('force_failure', force ? 'true' : 'false');
   }
 
   @override
   Future<bool> uploadBatch(BatchModel batch) async {
+    // Check shared config so background WorkManager isolate also obeys the outage simulation
+    final isPersistedForced = await dbHelper?.getConfig('force_failure') == 'true';
+    final shouldFail = _forceFailure || isPersistedForced;
+
     // -------------------------------------------------------------------------
     // PRODUCTION REST API IMPLEMENTATION (Commented out per assessment instructions)
     // -------------------------------------------------------------------------
@@ -61,7 +72,7 @@ class MockUploadApiClient implements RemoteSyncApi {
     await Future.delayed(const Duration(milliseconds: 1400));
 
     // If simulated failure or device forced failure is toggled
-    if (_forceFailure) {
+    if (shouldFail) {
       throw const SocketException("Simulated Network Drop / Low Bandwidth Timeout");
     }
 

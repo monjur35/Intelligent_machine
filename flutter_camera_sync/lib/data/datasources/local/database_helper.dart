@@ -26,6 +26,14 @@ class DatabaseHelper {
       path,
       version: _dbVersion,
       onCreate: _createDB,
+      onOpen: (db) async {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS app_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          )
+        ''');
+      },
     );
   }
 
@@ -51,6 +59,13 @@ class DatabaseHelper {
         captured_at TEXT NOT NULL,
         is_uploaded INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (batch_id) REFERENCES batches (id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
       )
     ''');
   }
@@ -127,6 +142,63 @@ class DatabaseHelper {
       DELETE FROM batches 
       WHERE id NOT IN (SELECT DISTINCT batch_id FROM batch_images)
     ''');
+  }
+
+  Future<String?> getConfig(String key) async {
+    final db = await database;
+    final rows = await db.query(
+      'app_config',
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['value'] as String?;
+  }
+
+  Future<void> setConfig(String key, String value) async {
+    final db = await database;
+    await db.insert(
+      'app_config',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<bool> acquireSyncLock({Duration lease = const Duration(seconds: 45)}) async {
+    final lockStr = await getConfig('sync_lock_until');
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (lockStr != null) {
+      final until = int.tryParse(lockStr) ?? 0;
+      if (now < until) {
+        return false; // Lock is currently held by another worker/isolate
+      }
+    }
+    await setConfig('sync_lock_until', (now + lease.inMilliseconds).toString());
+    return true;
+  }
+
+  Future<void> releaseSyncLock() async {
+    await setConfig('sync_lock_until', '0');
+  }
+
+  Future<int> resetStaleSyncingBatches() async {
+    final db = await database;
+    return await db.rawUpdate('''
+      UPDATE batches
+      SET status = 'queued', error_message = 'Sync interrupted; auto-requeued'
+      WHERE status = 'syncing'
+    ''');
+  }
+
+  Future<void> markBatchImagesUploaded(String batchId) async {
+    final db = await database;
+    await db.update(
+      'batch_images',
+      {'is_uploaded': 1},
+      where: 'batch_id = ?',
+      whereArgs: [batchId],
+    );
   }
 
   Future<void> close() async {

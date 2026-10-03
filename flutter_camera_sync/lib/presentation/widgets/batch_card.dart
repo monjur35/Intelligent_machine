@@ -40,16 +40,16 @@ class BatchCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isSyncing
-              ? AppTheme.cyanAccent.withOpacity(0.5)
+              ? AppTheme.cyanAccent.withValues(alpha: 0.5)
               : isFailed
-                  ? AppTheme.statusFailed.withOpacity(0.4)
+                  ? AppTheme.statusFailed.withValues(alpha: 0.4)
                   : AppTheme.surfaceBorder,
           width: isSyncing ? 1.5 : 1.0,
         ),
         boxShadow: [
           if (isSyncing)
             BoxShadow(
-              color: AppTheme.cyanAccent.withOpacity(0.12),
+              color: AppTheme.cyanAccent.withValues(alpha: 0.12),
               blurRadius: 12,
               spreadRadius: 2,
             ),
@@ -70,7 +70,7 @@ class BatchCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppTheme.cyanAccent.withOpacity(0.12),
+                          color: AppTheme.cyanAccent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
@@ -98,7 +98,7 @@ class BatchCard extends StatelessWidget {
                             Text(
                               'Created: ${_formatTimestamp(batch.createdAt)}',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
+                                color: Colors.white.withValues(alpha: 0.5),
                                 fontSize: 11,
                               ),
                             ),
@@ -117,9 +117,9 @@ class BatchCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withOpacity(0.06)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -132,7 +132,7 @@ class BatchCard extends StatelessWidget {
                   Container(
                     width: 1,
                     height: 24,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                   _buildMetaItem(
                     icon: Icons.data_usage_rounded,
@@ -142,7 +142,7 @@ class BatchCard extends StatelessWidget {
                   Container(
                     width: 1,
                     height: 24,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                   _buildMetaItem(
                     icon: Icons.replay_rounded,
@@ -204,9 +204,9 @@ class BatchCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppTheme.statusFailed.withOpacity(0.12),
+                  color: AppTheme.statusFailed.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.statusFailed.withOpacity(0.4)),
+                  border: Border.all(color: AppTheme.statusFailed.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
@@ -317,7 +317,7 @@ class BatchCard extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.white.withOpacity(0.5)),
+        Icon(icon, size: 14, color: Colors.white.withValues(alpha: 0.5)),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,7 +325,7 @@ class BatchCard extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 10,
               ),
             ),

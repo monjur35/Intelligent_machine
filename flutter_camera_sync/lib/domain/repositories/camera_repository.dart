@@ -10,6 +10,8 @@ abstract class CameraRepository {
   Future<void> setFocusPoint(Offset point);
   Future<BatchImageEntity> capturePhoto(String batchId);
   Future<void> toggleFlash();
+  Future<void> releaseCamera();
+  Future<void> switchBackLens(int index);
   Future<void> dispose();
   Stream<CameraConfigEntity> get configStream;
   CameraConfigEntity get currentConfig;

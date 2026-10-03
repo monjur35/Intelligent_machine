@@ -15,7 +15,7 @@ void callbackDispatcher() {
       WidgetsFlutterBinding.ensureInitialized();
       debugPrint('[BackgroundSyncWorker] Executing headless task: $taskName');
       final dbHelper = DatabaseHelper.instance;
-      final remoteApi = MockUploadApiClient();
+      final remoteApi = MockUploadApiClient(dbHelper: dbHelper);
       final syncRepo = SyncRepositoryImpl(
         dbHelper: dbHelper,
         remoteApi: remoteApi,

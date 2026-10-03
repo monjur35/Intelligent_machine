@@ -9,6 +9,8 @@ import 'data/datasources/local/database_helper.dart';
 import 'data/datasources/remote/mock_upload_api.dart';
 import 'data/repositories/camera_repository_impl.dart';
 import 'data/repositories/sync_repository_impl.dart';
+import 'domain/repositories/camera_repository.dart';
+import 'domain/repositories/sync_repository.dart';
 import 'presentation/blocs/camera/camera_bloc.dart';
 import 'presentation/blocs/sync/sync_bloc.dart';
 import 'services/background_sync_worker.dart';
@@ -56,8 +58,8 @@ void main() async {
 }
 
 class AeroSyncApp extends StatelessWidget {
-  final CameraRepositoryImpl cameraRepository;
-  final SyncRepositoryImpl syncRepository;
+  final CameraRepository cameraRepository;
+  final SyncRepository syncRepository;
   final NetworkInfo networkInfo;
   final RemoteSyncApi remoteApi;
 
@@ -88,10 +90,11 @@ class AeroSyncApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'AeroSync Camera',
+        title: 'AeroSync',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         navigatorKey: AppRouter.navigatorKey,
+        navigatorObservers: [AppRouter.routeObserver],
         initialRoute: AppRoutes.initial,
         onGenerateRoute: AppRouter.onGenerateRoute,
       ),

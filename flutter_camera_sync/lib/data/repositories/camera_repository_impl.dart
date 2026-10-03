@@ -31,6 +31,12 @@ class CameraRepositoryImpl implements CameraRepository {
   Future<void> toggleFlash() => dataSource.toggleFlash();
 
   @override
+  Future<void> releaseCamera() => dataSource.releaseCamera();
+
+  @override
+  Future<void> switchBackLens(int index) => dataSource.switchBackLens(index);
+
+  @override
   Future<void> dispose() => dataSource.dispose();
 
   @override

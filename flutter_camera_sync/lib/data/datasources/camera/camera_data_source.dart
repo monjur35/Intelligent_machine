@@ -8,12 +8,14 @@ import '../../../domain/entities/camera_config_entity.dart';
 import '../../models/batch_image_model.dart';
 
 abstract class CameraDataSource {
-  Future<void> initialize();
+  Future<void> initialize({int? cameraIndex});
   CameraController? get controller;
   Future<void> setZoom(double zoom);
   Future<void> setFocus(Offset point);
   Future<void> toggleFlash();
   Future<BatchImageModel> capturePhoto(String batchId);
+  Future<void> releaseCamera();
+  Future<void> switchBackLens(int index);
   Future<void> dispose();
   Stream<CameraConfigEntity> get configStream;
   CameraConfigEntity get currentConfig;
@@ -23,6 +25,8 @@ class CameraDataSourceImpl implements CameraDataSource {
   CameraController? _controller;
   final _configController = StreamController<CameraConfigEntity>.broadcast();
   CameraConfigEntity _config = const CameraConfigEntity();
+  List<CameraDescription> _backCameras = [];
+  int _activeBackCameraIndex = 0;
 
   bool _isInitializing = false;
 
@@ -36,10 +40,30 @@ class CameraDataSourceImpl implements CameraDataSource {
   CameraConfigEntity get currentConfig => _config;
 
   @override
-  Future<void> initialize() async {
+  Future<void> releaseCamera() async {
+    if (_controller != null) {
+      try {
+        await _controller!.dispose();
+      } catch (_) {}
+      _controller = null;
+    }
+    _updateConfig(_config.copyWith(isReady: false));
+  }
+
+  @override
+  Future<void> switchBackLens(int index) async {
+    if (index >= 0 && index < _backCameras.length && index != _activeBackCameraIndex) {
+      _activeBackCameraIndex = index;
+      await initialize(cameraIndex: index);
+    }
+  }
+
+  @override
+  Future<void> initialize({int? cameraIndex}) async {
     if (_isInitializing) return;
 
-    if (_controller != null &&
+    if (cameraIndex == null &&
+        _controller != null &&
         _controller!.value.isInitialized &&
         _config.isReady &&
         !_config.isSimulated) {
@@ -61,14 +85,21 @@ class CameraDataSourceImpl implements CameraDataSource {
         return;
       }
 
-      // Select back camera with best resolution
-      final backCamera = cameras.firstWhere(
-        (cam) => cam.lensDirection == CameraLensDirection.back,
-        orElse: () => cameras.first,
-      );
+      _backCameras = cameras
+          .where((cam) => cam.lensDirection == CameraLensDirection.back)
+          .toList();
+      if (_backCameras.isEmpty) {
+        _backCameras = cameras;
+      }
+
+      final targetIndex = (cameraIndex != null && cameraIndex < _backCameras.length)
+          ? cameraIndex
+          : _activeBackCameraIndex.clamp(0, _backCameras.length - 1);
+      _activeBackCameraIndex = targetIndex;
+      final selectedCamera = _backCameras[targetIndex];
 
       final newController = CameraController(
-        backCamera,
+        selectedCamera,
         ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: Platform.isIOS
@@ -87,11 +118,18 @@ class CameraDataSourceImpl implements CameraDataSource {
         maxZoom = await _controller!.getMaxZoomLevel();
       } catch (_) {}
 
-      // Discrete zoom ratios clamped to hardware range
-      final ratios = [0.5, 1.0, 2.0]
-          .where((r) => r >= minZoom && r <= maxZoom || r == 1.0)
-          .toList();
-      if (ratios.isEmpty) ratios.add(1.0);
+      // Hardware-tailored zoom ratios based on sensor limits
+      final ratios = <double>[];
+      if (minZoom <= 0.6) {
+        ratios.add(double.parse(minZoom.toStringAsFixed(1)));
+      }
+      ratios.add(1.0);
+      if (maxZoom >= 2.0) ratios.add(2.0);
+      if (maxZoom >= 5.0) {
+        ratios.add(5.0);
+      } else if (maxZoom >= 3.0) {
+        ratios.add(3.0);
+      }
 
       _updateConfig(_config.copyWith(
         isReady: true,
@@ -100,6 +138,8 @@ class CameraDataSourceImpl implements CameraDataSource {
         minZoom: minZoom,
         maxZoom: maxZoom,
         availableRatios: ratios,
+        backCameraCount: _backCameras.length,
+        activeBackCameraIndex: _activeBackCameraIndex,
       ));
     } on CameraException catch (e) {
       debugPrint("Camera hardware initialization failed: $e");
@@ -209,7 +249,7 @@ class CameraDataSourceImpl implements CameraDataSource {
 
   @override
   Future<void> dispose() async {
-    await _controller?.dispose();
+    await releaseCamera();
     await _configController.close();
   }
 }

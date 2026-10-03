@@ -10,6 +10,8 @@ class CameraConfigEntity extends Equatable {
   final bool isFlashEnabled;
   final bool isReady;
   final bool isSimulated;
+  final int backCameraCount;
+  final int activeBackCameraIndex;
 
   const CameraConfigEntity({
     this.currentZoom = 1.0,
@@ -20,6 +22,8 @@ class CameraConfigEntity extends Equatable {
     this.isFlashEnabled = false,
     this.isReady = false,
     this.isSimulated = false,
+    this.backCameraCount = 1,
+    this.activeBackCameraIndex = 0,
   });
 
   CameraConfigEntity copyWith({
@@ -31,6 +35,8 @@ class CameraConfigEntity extends Equatable {
     bool? isFlashEnabled,
     bool? isReady,
     bool? isSimulated,
+    int? backCameraCount,
+    int? activeBackCameraIndex,
   }) {
     return CameraConfigEntity(
       currentZoom: currentZoom ?? this.currentZoom,
@@ -41,6 +47,8 @@ class CameraConfigEntity extends Equatable {
       isFlashEnabled: isFlashEnabled ?? this.isFlashEnabled,
       isReady: isReady ?? this.isReady,
       isSimulated: isSimulated ?? this.isSimulated,
+      backCameraCount: backCameraCount ?? this.backCameraCount,
+      activeBackCameraIndex: activeBackCameraIndex ?? this.activeBackCameraIndex,
     );
   }
 
@@ -54,5 +62,7 @@ class CameraConfigEntity extends Equatable {
         isFlashEnabled,
         isReady,
         isSimulated,
+        backCameraCount,
+        activeBackCameraIndex,
       ];
 }

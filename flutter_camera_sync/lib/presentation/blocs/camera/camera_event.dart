@@ -49,3 +49,15 @@ class ToggleFlashEvent extends CameraEvent {}
 class CapturePhotoEvent extends CameraEvent {}
 
 class NewBatchEvent extends CameraEvent {}
+
+class ReleaseCameraEvent extends CameraEvent {}
+
+class SwitchBackLensEvent extends CameraEvent {
+  final int lensIndex;
+  const SwitchBackLensEvent(this.lensIndex);
+
+  @override
+  List<Object?> get props => [lensIndex];
+}
+
+class ResetFocusAnimationEvent extends CameraEvent {}

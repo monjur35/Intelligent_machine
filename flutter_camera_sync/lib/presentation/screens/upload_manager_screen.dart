@@ -29,8 +29,8 @@ class UploadManagerScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: state.isOnline
-                      ? AppTheme.statusSynced.withOpacity(0.15)
-                      : AppTheme.statusFailed.withOpacity(0.15),
+                      ? AppTheme.statusSynced.withValues(alpha: 0.15)
+                      : AppTheme.statusFailed.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: state.isOnline
@@ -240,7 +240,7 @@ class UploadManagerScreen extends StatelessWidget {
                             ? 'Fails API uploads to verify queue retry'
                             : 'Uploads will succeed normally',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.white.withValues(alpha: 0.5),
                           fontSize: 10,
                         ),
                       ),
@@ -279,7 +279,7 @@ class UploadManagerScreen extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             fontSize: 10,
             letterSpacing: 0.8,
             fontWeight: FontWeight.w600,
@@ -299,7 +299,7 @@ class UploadManagerScreen extends StatelessWidget {
             Icon(
               Icons.cloud_done_outlined,
               size: 64,
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -315,7 +315,7 @@ class UploadManagerScreen extends StatelessWidget {
               'No photo batches in queue. Tap below or return to the camera viewfinder to capture photos into a batch.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 13,
               ),
             ),

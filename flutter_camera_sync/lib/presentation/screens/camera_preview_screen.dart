@@ -22,7 +22,7 @@ class CameraPreviewScreen extends StatefulWidget {
 }
 
 class _CameraPreviewScreenState extends State<CameraPreviewScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, RouteAware {
   double _baseScale = 1.0;
   double _currentScale = 1.0;
   Offset? _tapFocusOffset;
@@ -38,17 +38,55 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final modalRoute = ModalRoute.of(context);
+    if (modalRoute is PageRoute) {
+      AppRouter.routeObserver.subscribe(this, modalRoute);
+    }
+  }
+
+  @override
   void dispose() {
+    AppRouter.routeObserver.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
+    if (_hasCameraPermission) {
+      context.read<CameraBloc>().add(ReleaseCameraEvent());
+    }
     super.dispose();
   }
 
   @override
+  void didPushNext() {
+    // When pushing another screen (e.g. Upload Manager), release camera hardware (fixes B4)
+    if (_hasCameraPermission) {
+      context.read<CameraBloc>().add(ReleaseCameraEvent());
+    }
+  }
+
+  @override
+  void didPopNext() {
+    // Returning to camera viewfinder: re-acquire and initialize camera (fixes B4)
+    if (_hasCameraPermission) {
+      _startCameraIfNeeded();
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed &&
-        !_hasCameraPermission &&
-        !_isRequestingPermission) {
-      _checkPermissionOnResume();
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // Backgrounded: release camera hardware to prevent battery drain or camera lockouts (fixes B4)
+      if (_hasCameraPermission) {
+        context.read<CameraBloc>().add(ReleaseCameraEvent());
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_hasCameraPermission && !_isRequestingPermission) {
+        _checkPermissionOnResume();
+      } else if (_hasCameraPermission) {
+        // App returned to foreground: re-initialize camera
+        _startCameraIfNeeded();
+      }
     }
   }
 
@@ -333,10 +371,10 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.65),
+                          color: Colors.black.withValues(alpha: 0.65),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: AppTheme.cyanAccent.withOpacity(0.5),
+                            color: AppTheme.cyanAccent.withValues(alpha: 0.5),
                           ),
                         ),
                         child: Row(
@@ -431,6 +469,12 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                           minZoom: config.minZoom,
                           maxZoom: config.maxZoom,
                           availableRatios: config.availableRatios,
+                          backCameraCount: config.backCameraCount,
+                          activeBackCameraIndex: config.activeBackCameraIndex,
+                          onLensSelected: (index) {
+                            HapticFeedback.selectionClick();
+                            context.read<CameraBloc>().add(SwitchBackLensEvent(index));
+                          },
                           onZoomChanged: (zoom) {
                             setState(() {
                               _currentScale = zoom;
@@ -571,7 +615,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
                                         : [
                                             BoxShadow(
                                               color: AppTheme.cyanAccent
-                                                  .withOpacity(0.4),
+                                                  .withValues(alpha: 0.4),
                                               blurRadius: 16,
                                               spreadRadius: 2,
                                             ),
@@ -694,7 +738,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
             height: 140,
             decoration: BoxDecoration(
               border: Border.all(
-                color: AppTheme.cyanAccent.withOpacity(0.3),
+                color: AppTheme.cyanAccent.withValues(alpha: 0.3),
                 width: 1,
               ),
               borderRadius: BorderRadius.circular(70),
@@ -705,7 +749,7 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
             height: 16,
             decoration: BoxDecoration(
               border: Border.all(
-                color: AppTheme.cyanGlow.withOpacity(0.6),
+                color: AppTheme.cyanGlow.withValues(alpha: 0.6),
                 width: 1.5,
               ),
             ),
@@ -829,9 +873,9 @@ class _CameraPreviewScreenState extends State<CameraPreviewScreen>
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.55),
+            color: Colors.black.withValues(alpha: 0.55),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.15)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
           ),
           child: Icon(icon, color: color, size: iconSize),
         ),
@@ -844,7 +888,7 @@ class ViewfinderGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
+      ..color = Colors.white.withValues(alpha: 0.08)
       ..strokeWidth = 1.0;
 
     final x1 = size.width / 3;

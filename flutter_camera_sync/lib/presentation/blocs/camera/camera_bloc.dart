@@ -10,6 +10,7 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
   final CameraRepository cameraRepository;
   final SyncRepository syncRepository;
   StreamSubscription? _configSub;
+  Timer? _focusResetTimer;
 
   CameraController? get controller => cameraRepository.controller;
 
@@ -19,9 +20,14 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     on<ChangeZoomEvent>(_onChangeZoom);
     on<SetZoomRatioEvent>(_onSetZoomRatio);
     on<TapFocusEvent>(_onTapFocus);
+    on<ResetFocusAnimationEvent>((event, emit) {
+      emit(state.copyWith(showFocusAnimation: false));
+    });
     on<ToggleFlashEvent>(_onToggleFlash);
     on<CapturePhotoEvent>(_onCapturePhoto);
     on<NewBatchEvent>(_onNewBatch);
+    on<ReleaseCameraEvent>(_onReleaseCamera);
+    on<SwitchBackLensEvent>(_onSwitchBackLens);
     on<CameraConfigUpdatedEvent>((event, emit) {
       emit(state.copyWith(config: event.config));
     });
@@ -72,13 +78,15 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     Emitter<CameraState> emit,
   ) async {
     await cameraRepository.setFocusPoint(event.point);
+    _focusResetTimer?.cancel();
     emit(state.copyWith(showFocusAnimation: true));
 
-    // Auto-dismiss the visual focus indicator after 1.8 seconds
-    await Future.delayed(const Duration(milliseconds: 1800));
-    if (!isClosed) {
-      emit(state.copyWith(showFocusAnimation: false));
-    }
+    // Auto-dismiss the visual focus indicator after 1.8 seconds using a managed timer
+    _focusResetTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (!isClosed) {
+        add(ResetFocusAnimationEvent());
+      }
+    });
   }
 
   Future<void> _onToggleFlash(
@@ -118,9 +126,25 @@ class CameraBloc extends Bloc<CameraEvent, CameraState> {
     emit(state.copyWith(activeBatch: batch));
   }
 
+  Future<void> _onReleaseCamera(
+    ReleaseCameraEvent event,
+    Emitter<CameraState> emit,
+  ) async {
+    await cameraRepository.releaseCamera();
+  }
+
+  Future<void> _onSwitchBackLens(
+    SwitchBackLensEvent event,
+    Emitter<CameraState> emit,
+  ) async {
+    await cameraRepository.switchBackLens(event.lensIndex);
+  }
+
   @override
   Future<void> close() {
+    _focusResetTimer?.cancel();
     _configSub?.cancel();
     return super.close();
   }
 }
+

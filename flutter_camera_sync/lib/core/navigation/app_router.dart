@@ -17,6 +17,10 @@ class AppRouter {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
+  /// Global route observer for monitoring screen push/pop transitions
+  static final RouteObserver<PageRoute> routeObserver =
+      RouteObserver<PageRoute>();
+
   /// Route map for standard static route declarations.
   static Map<String, WidgetBuilder> get routes => {
         AppRoutes.cameraPreview: (context) => const CameraPreviewScreen(),

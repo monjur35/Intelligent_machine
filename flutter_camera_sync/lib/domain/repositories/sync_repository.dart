@@ -10,4 +10,5 @@ abstract class SyncRepository {
   Future<void> processSyncQueue();
   Future<void> retryFailedBatches();
   Stream<List<BatchEntity>> get batchesStream;
+  Future<void> dispose();
 }

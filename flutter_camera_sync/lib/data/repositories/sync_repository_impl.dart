@@ -85,6 +85,10 @@ class SyncRepositoryImpl implements SyncRepository {
               retryCount: 0,
             );
       await dbHelper.insertBatch(batchToInsert);
+    } else if (existingBatch.status == BatchStatus.synced || existingBatch.status == BatchStatus.failed) {
+      // Re-queue the batch so new images are guaranteed to be uploaded (fixes B1)
+      final reQueued = existingBatch.copyWith(status: BatchStatus.queued, errorMessage: null);
+      await dbHelper.updateBatch(BatchModel.fromEntity(reQueued));
     }
 
     final imageModel = BatchImageModel.fromEntity(image);
@@ -133,6 +137,7 @@ class SyncRepositoryImpl implements SyncRepository {
     try {
       final success = await remoteApi.uploadBatch(BatchModel.fromEntity(batch));
       if (success) {
+        await dbHelper.markBatchImagesUploaded(batch.id);
         final syncedBatch = batch.copyWith(
           status: BatchStatus.synced,
           errorMessage: null,
@@ -157,17 +162,30 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<void> processSyncQueue() async {
-    final batches = await getAllBatches();
-    final pending = batches.where((b) =>
-        (b.status == BatchStatus.queued || b.status == BatchStatus.failed) &&
-        b.images.isNotEmpty);
+    // Reset any batches stuck in 'syncing' from crash or killed process (fixes B2)
+    await dbHelper.resetStaleSyncingBatches();
 
-    for (final batch in pending) {
-      final success = await uploadBatch(batch);
-      if (!success) {
-        // If an upload fails due to network, keep subsequent batches in queue
-        break;
+    // Mutex lock prevents foreground isolate and WorkManager background task collision (fixes B5)
+    final acquired = await dbHelper.acquireSyncLock();
+    if (!acquired) {
+      return;
+    }
+
+    try {
+      final batches = await getAllBatches();
+      final pending = batches.where((b) =>
+          (b.status == BatchStatus.queued || b.status == BatchStatus.failed) &&
+          b.images.isNotEmpty);
+
+      for (final batch in pending) {
+        final success = await uploadBatch(batch);
+        if (!success) {
+          // If an upload fails due to network, keep subsequent batches in queue
+          break;
+        }
       }
+    } finally {
+      await dbHelper.releaseSyncLock();
     }
   }
 
@@ -182,5 +200,12 @@ class SyncRepositoryImpl implements SyncRepository {
     }
     await _refreshBatches();
     await processSyncQueue();
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (!_batchesStreamController.isClosed) {
+      await _batchesStreamController.close();
+    }
   }
 }

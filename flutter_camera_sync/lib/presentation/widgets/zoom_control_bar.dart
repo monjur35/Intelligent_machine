@@ -8,6 +8,9 @@ class ZoomControlBar extends StatelessWidget {
   final List<double> availableRatios;
   final ValueChanged<double> onZoomChanged;
   final ValueChanged<double> onRatioSelected;
+  final int backCameraCount;
+  final int activeBackCameraIndex;
+  final ValueChanged<int>? onLensSelected;
 
   const ZoomControlBar({
     super.key,
@@ -17,6 +20,9 @@ class ZoomControlBar extends StatelessWidget {
     required this.availableRatios,
     required this.onZoomChanged,
     required this.onRatioSelected,
+    this.backCameraCount = 1,
+    this.activeBackCameraIndex = 0,
+    this.onLensSelected,
   });
 
   @override
@@ -119,6 +125,51 @@ class ZoomControlBar extends StatelessWidget {
               ),
             );
           }),
+
+          // Physical lens switcher when multiple back cameras exist
+          if (backCameraCount > 1) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Container(
+                width: 20,
+                height: 1,
+                color: Colors.white24,
+              ),
+            ),
+            ...List.generate(backCameraCount, (index) {
+              final isLensActive = activeBackCameraIndex == index;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: InkWell(
+                  onTap: () => onLensSelected?.call(index),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 32,
+                    height: 24,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: isLensActive
+                          ? AppTheme.cyanAccent.withValues(alpha: 0.85)
+                          : Colors.white10,
+                      border: Border.all(
+                        color: isLensActive ? AppTheme.cyanGlow : Colors.white24,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      'L${index + 1}',
+                      style: TextStyle(
+                        color: isLensActive ? Colors.black : Colors.white70,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
