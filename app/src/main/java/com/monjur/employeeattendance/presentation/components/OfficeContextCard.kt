@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.ButtonDefaults
@@ -152,7 +153,11 @@ fun OfficeContextCard(
 
             // Explanatory guidance text
             Text(
-                text = "To mark your attendance, ensure your current office location is correctly identified.",
+                text = if (officeLocation != null) {
+                    "Office location is established. Your check-in eligibility is verified automatically against this 50m geofence."
+                } else {
+                    "To mark your attendance, set your official office location once using your current GPS coordinates."
+                },
                 fontSize = 13.sp,
                 color = Color(0xFF64748B),
                 textAlign = TextAlign.Center,
@@ -160,75 +165,104 @@ fun OfficeContextCard(
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
 
-            // Warning message if GPS is disabled
-            if (!isGpsEnabled) {
-                Spacer(modifier = Modifier.height(10.dp))
+            // When office location is NOT set yet, display setup button and GPS warning if needed
+            if (officeLocation == null) {
+                // Warning message if GPS is disabled
+                if (!isGpsEnabled) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFEF2F2),
+                        border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOff,
+                                contentDescription = "GPS Disabled",
+                                modifier = Modifier.size(18.dp),
+                                tint = Color(0xFFDC2626)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "GPS is disabled. Please enable GPS on your device to set office location.",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFDC2626),
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Outlined Set Office Location Button (set once per app lifetime)
+                OutlinedButton(
+                    onClick = onSetLocationClick,
+                    enabled = !isLoading && isGpsEnabled,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(
+                        1.5.dp,
+                        if (!isGpsEnabled) Color(0xFFCBD5E1) else Color(0xFF2563EB)
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF2563EB),
+                        disabledContentColor = Color(0xFF94A3B8)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
+                ) {
+                    Icon(
+                        imageVector = if (!isGpsEnabled) Icons.Default.LocationOff else Icons.Default.MyLocation,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (!isGpsEnabled) Color(0xFF94A3B8) else Color(0xFF2563EB)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = when {
+                            !isGpsEnabled -> "GPS Disabled"
+                            isLoading -> "Calibrating Coordinates..."
+                            else -> "Set Office Location"
+                        },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (!isGpsEnabled) Color(0xFF94A3B8) else Color(0xFF2563EB)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+                // Calibrated & Locked Indicator (no re-setting needed)
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFFEF2F2),
-                    border = BorderStroke(1.dp, Color(0xFFFECACA)),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFFF0FDF4),
+                    border = BorderStroke(1.dp, Color(0xFFBBF7D0))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.LocationOff,
-                            contentDescription = "GPS Disabled",
-                            modifier = Modifier.size(18.dp),
-                            tint = Color(0xFFDC2626)
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Configured",
+                            modifier = Modifier.size(15.dp),
+                            tint = Color(0xFF16A34A)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "GPS is disabled. Please enable GPS on your device to set office location.",
+                            text = "Geofence Configured (50m Radius)",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFFDC2626),
-                            lineHeight = 16.sp
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF15803D)
                         )
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Outlined Set / Update Office Location Button
-            OutlinedButton(
-                onClick = onSetLocationClick,
-                enabled = !isLoading && isGpsEnabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(
-                    1.5.dp,
-                    if (!isGpsEnabled) Color(0xFFCBD5E1) else Color(0xFF2563EB)
-                ),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFF2563EB),
-                    disabledContentColor = Color(0xFF94A3B8)
-                ),
-                contentPadding = PaddingValues(horizontal = 16.dp)
-            ) {
-                Icon(
-                    imageVector = if (!isGpsEnabled) Icons.Default.LocationOff else Icons.Default.MyLocation,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = if (!isGpsEnabled) Color(0xFF94A3B8) else Color(0xFF2563EB)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when {
-                        !isGpsEnabled -> "GPS Disabled"
-                        isLoading -> "Updating Coordinates..."
-                        officeLocation != null -> "Update Office Location"
-                        else -> "Set Office Location"
-                    },
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (!isGpsEnabled) Color(0xFF94A3B8) else Color(0xFF2563EB)
-                )
             }
         } 
     }
